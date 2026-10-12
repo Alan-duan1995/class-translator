@@ -85,7 +85,9 @@ function build() {
     askMic: () => (process.platform === "darwin" ? systemPreferences.askForMediaAccess("microphone") : Promise.resolve(true)),
     savePdf: (html, name) => savePdf(mainWindow, html, name),
   });
-  return { api, makeSession, makeSystemAudio: () => new SystemAudio(bins.syscap), appleTr, localTr };
+  // 旧版存在钥匙串里的 key：等窗口显示出来再转存（系统弹窗期间 App 会卡住，先弹的话窗口是一片白）
+  const migrateKeys = () => { if (settings.migrateLegacy()) llm.configure(); };
+  return { api, makeSession, makeSystemAudio: () => new SystemAudio(bins.syscap), appleTr, localTr, migrateKeys };
 }
 
 function createWindow() {
@@ -134,6 +136,7 @@ async function main() {
   if (process.env.CT_SMOKE_WAV) return runSmoke(deps);
   registerIpc({ ipcMain, ...deps });
   mainWindow = createWindow();
+  mainWindow.webContents.once("did-finish-load", () => setTimeout(deps.migrateKeys, 800));
   if (process.env.CT_SMOKE_OPEN) {
     mainWindow.webContents.on("console-message", (_e, _lvl, msg) => console.log("CONSOLE " + msg));
     mainWindow.webContents.once("did-finish-load", async () => {

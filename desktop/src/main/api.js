@@ -57,7 +57,7 @@ export function createApi({ settings, llm, appleTr, records, caps, version, open
     const src = q.get("src") ?? "en", tgt = q.get("tgt") ?? "zh";
     const translators = { ...TRANSLATORS };
     if (!caps.appleTranslate) delete translators.apple;
-    if (!caps.localTranslate || caps.appleTranslate) delete translators.local; // 有苹果翻译的电脑不用再列一个直译
+    if (!caps.localTranslate) delete translators.local;
     return {
       gemini: settings.keyState("gemini"), claude: settings.keyState("claude"),
       gemini_model: settings.pref("geminiModel", "auto"), gemini_models: GEMINI_MODELS,

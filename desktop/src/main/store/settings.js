@@ -16,6 +16,7 @@ export class Settings {
     this.file = file;
     this.crypto = crypto;
     this.legacy = legacy;
+    this.legacyLocked = !!legacy; // 旧版存在钥匙串里的 key 先不读：读的时候系统会弹窗并卡住 App，等窗口出来后再由 migrateLegacy() 读
     try { this.data = JSON.parse(fs.readFileSync(file, "utf8")); } catch { this.data = {}; }
     this.data.prefs ??= {};
     this.data.keys ??= {};
@@ -33,6 +34,7 @@ export class Settings {
     try {
       if (!this.legacy) return this.crypto.decryptString(Buffer.from(enc, "base64"));
       if (enc.startsWith(V2)) return this.crypto.decryptString(Buffer.from(enc.slice(V2.length), "base64"));
+      if (this.legacyLocked) return "";
       const v = this.legacy.decryptString(Buffer.from(enc, "base64")); // 旧版存的：读出来（系统会最后问一次密码），马上转存
       if (v) { try { this.setKey(provider, v); } catch {} }
       return v;
@@ -45,6 +47,13 @@ export class Settings {
     if (!this.crypto.isEncryptionAvailable()) throw new Error("加密不可用，无法安全保存 key");
     this.data.keys[provider] = (this.legacy ? V2 : "") + this.crypto.encryptString(v).toString("base64");
     this.#save();
+  }
+  /** 把旧版存在钥匙串里的 key 读出来转存（系统会问一次电脑密码）。返回有没有读到，读到了调用方要重新建客户端 */
+  migrateLegacy() {
+    if (!this.legacy) return false;
+    this.legacyLocked = false;
+    const old = Object.keys(this.data.keys).filter((p) => !this.data.keys[p].startsWith(V2));
+    return old.map((p) => this.getKey(p)).some(Boolean);
   }
   clearKey(provider) { delete this.data.keys[provider]; this.#save(); }
   keyState(provider) {

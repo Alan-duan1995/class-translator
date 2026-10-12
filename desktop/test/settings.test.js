@@ -89,12 +89,20 @@ test("Mac：旧版存在钥匙串里的 key 读一次就转存，之后不再碰
   let reads = 0, deny = true;
   const keychain = { ...fakeCrypto(), decryptString: (b) => { reads += 1; if (deny) throw new Error("用户拒绝"); return fakeCrypto().decryptString(b); } };
   const open = () => new Settings(f, new FileCrypto(path.join(path.dirname(f), "secret.key")), keychain);
-  assert.equal(open().getKey("gemini"), "");
+  const first = open();
+  assert.equal(first.getKey("gemini"), "");
+  assert.equal(reads, 0, "窗口出来之前不读钥匙串");
+  assert.equal(first.migrateLegacy(), false);
+  assert.equal(first.getKey("gemini"), "");
+  reads = 1;
   deny = false;
   const s = open();
+  assert.equal(s.migrateLegacy(), true);
   assert.equal(s.getKey("gemini"), KEY);
   assert.equal(s.getKey("gemini"), KEY);
-  assert.equal(open().getKey("gemini"), KEY);
+  const again = open();
+  assert.equal(again.getKey("gemini"), KEY);
+  assert.equal(again.migrateLegacy(), false);
   assert.equal(reads, 2, "拒绝一次、成功一次，之后都不再读钥匙串");
 });
 

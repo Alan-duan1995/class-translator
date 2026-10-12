@@ -586,9 +586,8 @@ apiFetch("/api/app-info").then((r) => r.json()).then((info) => {
   refreshSpeakers();
   for (const el of document.querySelectorAll(".apple-only")) el.hidden = !(info.caps.appleAsr || info.caps.appleTranslate);
   if (!info.caps.appleTranslate) delete TRANSLATORS.apple;
-  const localTr = info.caps.localTranslate && !info.caps.appleTranslate; // 有苹果翻译的电脑不用再列一个直译
-  if (!localTr) delete TRANSLATORS.local;
-  $("localTrSec").hidden = !localTr;
+  if (!info.caps.localTranslate) delete TRANSLATORS.local;
+  $("localTrSec").hidden = !info.caps.localTranslate;
   $("appleTrSec").hidden = !info.caps.appleTranslate;
   for (const el of document.querySelectorAll(".local-tr-only")) el.hidden = !info.caps.localTranslate;
   fillSelect($("translator"), TRANSLATORS, load("translator", "gemini", TRANSLATORS));
