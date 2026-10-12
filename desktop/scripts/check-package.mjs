@@ -4,7 +4,7 @@ import path from "node:path";
 import * as asar from "@electron/asar";
 
 const dist = path.join(import.meta.dirname, "../dist");
-const BAD_PATH = /(^|\/)(\.env|records\/|\.venv\/|settings\.json$)/;
+const BAD_PATH = /(^|\/)(\.env|records\/|\.venv\/|settings\.json$|secret\.key$)/;
 const KEY_RE = /AIza[0-9A-Za-z_-]{30,}|sk-ant-[0-9A-Za-z_-]{20,}/;
 const problems = [];
 

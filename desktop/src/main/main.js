@@ -20,6 +20,7 @@ import { LocalASR } from "./local/asr.js";
 import { AudioRecorder, cleanOldAudio } from "./store/audio.js";
 import { latestVersion } from "./update.js";
 import { LocalTranslator } from "./local/translate.js";
+import { FileCrypto } from "./store/filecrypto.js";
 
 const here = import.meta.dirname;
 app.setName("课堂同传");
@@ -41,7 +42,11 @@ function build() {
   });
   const caps = capabilities({ platform: process.platform, version: process.getSystemVersion(), has: (p) => fs.existsSync(p), bins, localModel: path.join(modelDir, "encoder.onnx"), localMtModel: path.join(mtModelDir, "model.bin") });
   if (process.env.CT_NO_APPLE) Object.assign(caps, { appleAsr: false, appleTranslate: false }); // 测试时假装是没有苹果识别 / 翻译的电脑
-  const settings = new Settings(path.join(app.getPath("userData"), "settings.json"), safeStorage);
+  // key 的加密：Windows 用系统加密；Mac 用 App 自己的加密（没有开发者签名时，钥匙串每次更新后都会弹窗要电脑密码）
+  const userData = app.getPath("userData");
+  const settings = process.platform === "darwin"
+    ? new Settings(path.join(userData, "settings.json"), new FileCrypto(path.join(userData, "secret.key")), safeStorage)
+    : new Settings(path.join(userData, "settings.json"), safeStorage);
   const records = new Records(process.env.CT_RECORDS_DIR ?? path.join(app.getPath("documents"), "课堂同传"));
   const llm = new LLM(settings);
   const appleTr = new AppleTranslator(bins.translate);
