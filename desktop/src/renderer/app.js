@@ -19,7 +19,7 @@ function refreshSpeakers() {
   if ($("asr").value !== "cloud") delete SPEAKERS.auto; // 只有云端识别能同时认中英文
   fillSelect($("speaker"), SPEAKERS, load("speaker", "en", SPEAKERS));
 }
-const TRANSLATORS = { gemini: "Gemini（推荐，会纠正识别错字）", claude: "Claude（会纠正识别错字）", openai: "其他模型（DeepSeek、OpenAI 等）", apple: "苹果自带（免费、本地、直译）" };
+const TRANSLATORS = { gemini: "Gemini（推荐，会纠正识别错字）", claude: "Claude（会纠正识别错字）", openai: "其他模型（DeepSeek、OpenAI 等）", apple: "苹果自带（免费、本地、直译）", local: "本地翻译（免费、不联网、直译）" };
 const TARGETS = { zh: "简体中文", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语" };
 
 // 语言选择：记住上次的选择，录音中途切换也会立即生效
@@ -586,6 +586,11 @@ apiFetch("/api/app-info").then((r) => r.json()).then((info) => {
   refreshSpeakers();
   for (const el of document.querySelectorAll(".apple-only")) el.hidden = !(info.caps.appleAsr || info.caps.appleTranslate);
   if (!info.caps.appleTranslate) delete TRANSLATORS.apple;
+  const localTr = info.caps.localTranslate && !info.caps.appleTranslate; // 有苹果翻译的电脑不用再列一个直译
+  if (!localTr) delete TRANSLATORS.local;
+  $("localTrSec").hidden = !localTr;
+  $("appleTrSec").hidden = !info.caps.appleTranslate;
+  for (const el of document.querySelectorAll(".local-tr-only")) el.hidden = !info.caps.localTranslate;
   fillSelect($("translator"), TRANSLATORS, load("translator", "gemini", TRANSLATORS));
   $("credit").title = "课堂同传 v" + info.version; // 版本号放在悬停提示里
   listMics();

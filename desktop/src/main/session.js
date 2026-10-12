@@ -10,8 +10,9 @@ const MAX_PARALLEL_TRANSLATIONS = 6;
 
 /** 一节课：收音频 → 苹果识别 → 字幕 → 后台翻译 → 定时更新笔记 → 每句存盘 */
 export class Session {
-  constructor({ send, llm, appleTr, records, caps, makeAsr, makeRecorder, sleep, now }) {
+  constructor({ send, llm, appleTr, localTr, records, caps, makeAsr, makeRecorder, sleep, now }) {
     Object.assign(this, { send, llm, appleTr, records, caps, makeAsr });
+    this.localTr = localTr ?? { translate: async () => ({ tr: "", code: "unsupported" }) };
     this.sleep = sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.now = now ?? Date.now;
     this.cfg = { ...DEFAULTS };
@@ -170,10 +171,22 @@ export class Session {
     this.save();
   }
 
-  /** 按选的翻译方式翻；Gemini / Claude 用不了时改用苹果翻译顶上 */
+  /** 不联网的直译：苹果翻译（新 Mac）和本地翻译（英语 → 简体中文），选了哪个先用哪个，翻不了再试另一个 */
+  async offlineTranslate(text, src, target) {
+    const apple = ["苹果翻译", this.appleTr], local = ["本地翻译", this.localTr];
+    let first = null;
+    for (const [who, t] of this.cfg.translator === "local" ? [local, apple] : [apple, local]) {
+      const r = await t.translate(text, src, target);
+      if (r.tr) return { ...r, who };
+      first ??= { ...r, who };
+    }
+    return first;
+  }
+
+  /** 按选的翻译方式翻；AI 模型用不了时改用苹果翻译 / 本地翻译顶上 */
   async translateText(text, src, context, target) {
     let err = null;
-    if (this.cfg.translator !== "apple") {
+    if (!["apple", "local"].includes(this.cfg.translator)) {
       for (const wait of [0, 3000, 8000]) { // 失败了等一会儿再试，最多 3 次
         if (wait) await this.sleep(wait);
         try {
@@ -185,12 +198,12 @@ export class Session {
         }
       }
     }
-    const { tr, code } = await this.appleTr.translate(text, src, target);
+    const { tr, code, who: offline } = await this.offlineTranslate(text, src, target);
     if (tr) {
       if (err && !this.fallbackNoted) {
         this.fallbackNoted = true;
         const who = PROVIDER_LABELS[this.cfg.translator] ?? "AI 翻译";
-        this.send({ type: "error", msg: `${who} 用不了（${friendly(err)}），先改用苹果翻译顶上（直译，不会纠正识别错字）` });
+        this.send({ type: "error", msg: `${who} 用不了（${friendly(err)}），先改用${offline}顶上（直译，不会纠正识别错字）` });
       }
       return tr;
     }
@@ -201,6 +214,7 @@ export class Session {
       }
       return "（苹果翻译还没下载这对语言，请在「AI 模型与 API」里点「打开系统设置下载语言」）";
     }
+    if (this.cfg.translator === "local") return "（翻译失败：本地翻译目前只支持英语译成简体中文，其他语言请改用 AI 模型）";
     return "（翻译失败：苹果翻译不支持这对语言）";
   }
 

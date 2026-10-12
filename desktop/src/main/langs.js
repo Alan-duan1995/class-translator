@@ -2,7 +2,7 @@
 export const SPEAKER_LANGS = { auto: "自动（中/英）", en: "英语", zh: "中文", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语" };
 export const TARGET_LANGS = { zh: "简体中文", en: "英语", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语" };
 // AI 模型会结合上文纠正识别错字；苹果自带是本地直译，只做备用
-export const TRANSLATORS = { gemini: "Gemini（推荐，会纠正识别错字）", claude: "Claude（会纠正识别错字）", openai: "其他模型（DeepSeek、OpenAI 等）", apple: "苹果自带（免费、本地、直译）" };
+export const TRANSLATORS = { gemini: "Gemini（推荐，会纠正识别错字）", claude: "Claude（会纠正识别错字）", openai: "其他模型（DeepSeek、OpenAI 等）", apple: "苹果自带（免费、本地、直译）", local: "本地翻译（免费、不联网、直译）" };
 export const PROVIDER_LABELS = { gemini: "Gemini", claude: "Claude", openai: "其他模型" };
 // 「其他模型」的常用服务商：选了就自动填好接口地址和推荐的模型名，都可以再改
 export const OPENAI_PRESETS = {

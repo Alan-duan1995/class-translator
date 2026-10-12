@@ -19,17 +19,28 @@ import { CloudASR } from "./cloud/asr.js";
 import { LocalASR } from "./local/asr.js";
 import { AudioRecorder, cleanOldAudio } from "./store/audio.js";
 import { latestVersion } from "./update.js";
+import { LocalTranslator } from "./local/translate.js";
 
 const here = import.meta.dirname;
 app.setName("课堂同传");
 let mainWindow = null;
+
+const NO_APPLE_TR = { translate: async () => ({ tr: "", code: "unsupported" }) };
 
 function build() {
   const bins = helperPaths({ isPackaged: app.isPackaged, resourcesPath: process.resourcesPath, devDir: path.join(here, "../../build/bin") });
   // 本地实时识别：模型是资源文件；线程脚本和 sherpa-onnx 打包时放在 asar 外面（线程和 WASM 都要按真实文件路径加载）
   const modelDir = app.isPackaged ? path.join(process.resourcesPath, "models", "kroko-en") : path.join(here, "../../models/kroko-en");
   const localWorker = path.join(here, "local/worker.cjs").replace("app.asar", "app.asar.unpacked");
-  const caps = capabilities({ platform: process.platform, version: process.getSystemVersion(), has: (p) => fs.existsSync(p), bins, localModel: path.join(modelDir, "encoder.onnx") });
+  // 本地翻译（英语 → 简体中文）：模型同样是资源文件，引擎的 WASM 也放在 asar 外面
+  const mtModelDir = path.join(path.dirname(modelDir), "mt-en-zh");
+  const localTr = new LocalTranslator({
+    workerPath: path.join(here, "local/mt-worker.cjs").replace("app.asar", "app.asar.unpacked"),
+    modelDir: mtModelDir,
+    engineDir: path.join(here, "../../node_modules/@browsermt/bergamot-translator/worker").replace("app.asar", "app.asar.unpacked"),
+  });
+  const caps = capabilities({ platform: process.platform, version: process.getSystemVersion(), has: (p) => fs.existsSync(p), bins, localModel: path.join(modelDir, "encoder.onnx"), localMtModel: path.join(mtModelDir, "model.bin") });
+  if (process.env.CT_NO_APPLE) Object.assign(caps, { appleAsr: false, appleTranslate: false }); // 测试时假装是没有苹果识别 / 翻译的电脑
   const settings = new Settings(path.join(app.getPath("userData"), "settings.json"), safeStorage);
   const records = new Records(process.env.CT_RECORDS_DIR ?? path.join(app.getPath("documents"), "课堂同传"));
   const llm = new LLM(settings);
@@ -43,7 +54,7 @@ function build() {
   cleanAudio();
   setInterval(cleanAudio, 6 * 3600_000).unref();
   const makeSession = (send) => new Session({
-    send, llm, appleTr, records, caps,
+    send, llm, appleTr: caps.appleTranslate ? appleTr : NO_APPLE_TR, localTr, records, caps,
     makeRecorder: (name) => (settings.pref("saveAudio", false) || process.env.CT_SMOKE_AUDIO ? new AudioRecorder(records.audioFile(name)) : null),
     makeAsr: (kind, speaker, offset) => {
       if (kind === "cloud") return new CloudASR({ llm, vad, speaker, offset });
@@ -69,7 +80,7 @@ function build() {
     askMic: () => (process.platform === "darwin" ? systemPreferences.askForMediaAccess("microphone") : Promise.resolve(true)),
     savePdf: (html, name) => savePdf(mainWindow, html, name),
   });
-  return { api, makeSession, makeSystemAudio: () => new SystemAudio(bins.syscap), appleTr };
+  return { api, makeSession, makeSystemAudio: () => new SystemAudio(bins.syscap), appleTr, localTr };
 }
 
 function createWindow() {
@@ -129,7 +140,7 @@ async function main() {
       app.quit();
     });
   }
-  app.on("window-all-closed", () => { deps.appleTr.stop(); app.quit(); });
+  app.on("window-all-closed", () => { deps.appleTr.stop(); deps.localTr.stop(); app.quit(); });
 }
 
 main();

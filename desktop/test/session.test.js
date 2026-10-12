@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { Session } from "../src/main/session.js";
-import { AllModelsBusy } from "../src/main/llm/errors.js";
+import { AllModelsBusy, NoKey } from "../src/main/llm/errors.js";
 
 class FakeAsr extends EventEmitter {
   constructor(speaker, offset, kind = "apple") { super(); Object.assign(this, { speaker, offset, kind, fed: 0, closed: false, killed: false }); }
@@ -12,12 +12,13 @@ class FakeAsr extends EventEmitter {
   kill() { this.killed = true; }
 }
 
-function setup({ llm = {}, appleTr = {}, caps = { appleAsr: true, cloudAsr: true, localAsr: true } } = {}) {
+function setup({ llm = {}, appleTr = {}, localTr, caps = { appleAsr: true, cloudAsr: true, localAsr: true } } = {}) {
   const sent = [], asrs = [], saved = [];
   const s = new Session({
     send: (m) => sent.push(m),
     llm: { available: () => ["gemini"], translate: async (t) => `译:${t}`, summarize: async () => "笔记", ...llm },
     appleTr: { translate: async () => ({ tr: "苹果译", code: "" }), ...appleTr },
+    localTr,
     records: { newName: () => "2026-10-07_09-00-00.md", save: (_n, _s, lines) => saved.push(lines.length) },
     caps,
     makeAsr: (kind, sp, off) => { const a = new FakeAsr(sp, off, kind); asrs.push(a); return a; },
@@ -368,4 +369,44 @@ test("选了「其他模型」：用它翻译；地址或模型名不对时不�
   assert.equal(tries, 1);
   assert.equal(bad.sent.find((m) => m.type === "translation").tr, "苹果译");
   assert.match(errors(bad.sent)[0], /其他模型 用不了（接口地址或模型名不对）/);
+});
+
+// ---------- 本地翻译（英语 → 简体中文，直译） ----------
+const noApple = { translate: async () => ({ tr: "", code: "unsupported" }) };
+const say = async (ctx, text = "Hello there.") => { ctx.s.audio(pcm(1)); ctx.asrs[0].emit("message", final(text)); await ctx.s.idle(); };
+const translated = (ctx) => ctx.sent.find((m) => m.type === "translation").tr;
+
+test("选了「本地翻译」：直接用它，不去问 AI", async () => {
+  let asked = 0;
+  const ctx = setup({ appleTr: noApple, localTr: { translate: async (t) => ({ tr: `本地:${t}`, code: "" }) }, llm: { translate: async () => { asked += 1; return "AI"; } } });
+  ctx.s.configure({ translator: "local" });
+  await say(ctx);
+  assert.equal(translated(ctx), "本地:Hello there.");
+  assert.equal(asked, 0);
+  assert.deepEqual(errors(ctx.sent), []);
+});
+
+test("没有苹果翻译的电脑：AI 用不了时改用本地翻译顶上，并说明", async () => {
+  const ctx = setup({ appleTr: noApple, localTr: { translate: async () => ({ tr: "本地译", code: "" }) },
+    llm: { translate: async () => { throw new NoKey("还没填写 Gemini 的 API key"); } } });
+  await say(ctx);
+  assert.equal(translated(ctx), "本地译");
+  assert.match(errors(ctx.sent)[0], /Gemini 用不了（还没填写 Gemini 的 API key），先改用本地翻译顶上（直译，不会纠正识别错字）/);
+});
+
+test("有苹果翻译的电脑：先用苹果翻译顶上；苹果也翻不了再用本地翻译", async () => {
+  const fail = { translate: async () => { throw new NoKey("没填"); } };
+  const a = setup({ localTr: { translate: async () => ({ tr: "本地译", code: "" }) }, llm: fail });
+  await say(a);
+  assert.equal(translated(a), "苹果译");
+  const b = setup({ appleTr: { translate: async () => ({ tr: "", code: "not_installed" }) }, localTr: { translate: async () => ({ tr: "本地译", code: "" }) }, llm: fail });
+  await say(b);
+  assert.equal(translated(b), "本地译");
+});
+
+test("选了「本地翻译」但不是英语译中文：说明只支持哪一种", async () => {
+  const ctx = setup({ appleTr: noApple, localTr: { translate: async () => ({ tr: "", code: "unsupported" }) } });
+  ctx.s.configure({ translator: "local" });
+  await say(ctx);
+  assert.match(translated(ctx), /本地翻译目前只支持英语译成简体中文/);
 });

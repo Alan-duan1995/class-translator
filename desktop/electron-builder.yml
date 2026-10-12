@@ -19,9 +19,10 @@ asar: true
 asarUnpack:
   - node_modules/onnxruntime-web/dist/**   # WebAssembly 文件放在压缩包外，按文件路径加载更可靠
   - node_modules/sherpa-onnx/**            # 本地实时识别的 WASM 运行库
+  - node_modules/@browsermt/bergamot-translator/**   # 本地翻译的 WASM 引擎
   - src/main/local/**                      # 后台线程脚本要按真实文件路径启动
 extraResources:
-  - from: models                           # 本地实时识别模型（scripts/fetch-models.sh 下载，不进 git）
+  - from: models                           # 本地实时识别模型和本地翻译模型（scripts/fetch-models.sh 下载，不进 git）
     to: models
 mac:
   target:

@@ -38,6 +38,13 @@ const MUST_FILES = [
   "app.asar.unpacked/src/main/local/sentences.js",
   "models/kroko-en/encoder.onnx",
   "models/kroko-en/tokens.txt",
+  "app.asar.unpacked/src/main/local/mt-worker.cjs",
+  "app.asar.unpacked/node_modules/@browsermt/bergamot-translator/worker/bergamot-translator-worker.wasm",
+  "app.asar.unpacked/node_modules/@browsermt/bergamot-translator/worker/bergamot-translator-worker.js",
+  "models/mt-en-zh/model.bin",
+  "models/mt-en-zh/lex.bin",
+  "models/mt-en-zh/src.spm",
+  "models/mt-en-zh/trg.spm",
 ];
 for (const res of resourceDirs) {
   walk(res);

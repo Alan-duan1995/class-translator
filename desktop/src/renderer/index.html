@@ -199,6 +199,7 @@
     <table class="privacy">
       <tr class="apple-only"><td>苹果识别、苹果翻译</td><td>只在这台电脑上处理，不上传</td></tr>
       <tr><td>本地实时识别</td><td>只在这台电脑上处理，不上传</td></tr>
+      <tr class="local-tr-only"><td>本地翻译</td><td>只在这台电脑上处理，不上传</td></tr>
       <tr><td>保存录音（默认关闭）</td><td>只存在这台电脑的课堂记录文件夹里，到期自动删除，不上传</td></tr>
       <tr><td>云端识别（Gemini）</td><td>有人说话的音频片段会发送给 Google</td></tr>
       <tr><td>Gemini 翻译、课堂笔记、课后精讲</td><td>转写的文字会发送给 Google</td></tr>
@@ -257,7 +258,12 @@
     <p class="hint">支持 OpenAI 兼容接口的模型都能用，可用于翻译和 AI 总结（云端识别仍然要用 Gemini）。转写的文字会发送到上面的接口地址。
       本地模型和带「思考」的模型比较慢，可能跟不上实时翻译。</p>
   </section>
-  <section>
+  <section id="localTrSec" hidden>
+    <div class="row"><b>本地翻译</b><span class="state ok">英语 → 简体中文：已可用</span></div>
+    <p class="hint">免费、不联网、不限量，不用填 key，装好就能用；但只是直译，不会像 AI 模型那样结合上文纠正识别错字，目前只支持英语译成简体中文。
+      选了 AI 模型时，没填 key、额度用完或出错会自动用它顶上。</p>
+  </section>
+  <section id="appleTrSec">
     <div class="row"><b>苹果自带翻译</b><span class="state" id="appleState"></span></div>
     <p class="hint">免费、本地、不限量，不用填 key；但只是直译，不会像 AI 模型那样结合上文纠正识别错字。
       选了 AI 模型时，额度用完或出错会自动用它顶上。<br>第一次用要先下载语言：系统设置 → 通用 → 语言与地区 → 翻译语言。</p>
