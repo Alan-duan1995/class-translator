@@ -4,7 +4,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 做出一个在新 Mac（macOS 26+）上双击就能用的「课堂同传」App，功能与现网页版一致（苹果识别、三种翻译、课堂笔记、课后精讲含历史记录、电脑内部声音、导出 Markdown / PDF），key 加密保存，底部写「Powered by 南瓜」。
+**Goal:** 做出一个在新 Mac（macOS 26+）上双击就能用的「课堂同传」App，功能与现网页版一致（苹果识别、三种翻译、课堂笔记、课后精讲含历史记录、电脑内部声音、导出 Markdown / PDF），key 加密保存，底部写「Powered by Alan」。
 
 **Architecture:** Electron App，放在仓库的 `desktop/` 子目录，现网页版（`server.py` 等）原样保留。后台逻辑从 Python 改写成 Node（ESM），拆成互不依赖 Electron 的纯模块（文本处理、记录、设置、AI 调用、苹果子程序封装、课堂流水线、接口路由），方便用 Node 自带测试框架测试；`main.js` 只负责把它们和 Electron 接起来。窗口沿用现网页的 HTML/JS，通过预加载桥（preload）走 IPC，不开任何网络端口。三个 Swift 子程序沿用 `apple_asr/` 里的源码，编译成通用二进制随 App 打包。
 
@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - App 名：`课堂同传`；appId：`local.nangua.classtranslator`；版本从 `0.1.0` 开始。
-- 主窗口底部固定一行：`Powered by 南瓜`。
+- 主窗口底部固定一行：`Powered by Alan`。
 - 界面文字全部简体中文；所有中文输出（字幕、翻译、笔记、精讲）都必须经过繁转简。
 - 翻译必须保留「带前 3 句上文 + 提示语音识别可能有错字」的提示词（原样移植 `llm.py` 的 `TRANSLATE_SYSTEM`）。苹果翻译只做备用。
 - 只识别所选说话人语言，其他语言一律丢弃（苹果识别：按把握值 < 0.5 或文字特征过滤）。
@@ -106,7 +106,7 @@ mkdir -p ~/class-translator/desktop/{scripts,src/main/store,src/main/llm,src/mai
   "productName": "课堂同传",
   "version": "0.1.0",
   "description": "课堂实时字幕与翻译",
-  "author": "南瓜",
+  "author": "Alan",
   "license": "MIT",
   "type": "module",
   "main": "src/main/main.js",
@@ -170,7 +170,7 @@ app.on("window-all-closed", () => app.quit());
 ```html
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>课堂同传</title></head>
-<body><p>课堂同传</p><footer>Powered by 南瓜</footer></body></html>
+<body><p>课堂同传</p><footer>Powered by Alan</footer></body></html>
 ```
 
 - [ ] **Step 6: 验证窗口能打开**
@@ -892,7 +892,7 @@ Expected: FAIL，找不到 `llm/gemini.js` 等。
 `desktop/src/main/llm/prompts.js`：
 
 ```js
-// 全部提示词原样移植自网页版 llm.py。TRANSLATE_SYSTEM 的「上文 + 纠错」是南瓜明确要求保留的。
+// 全部提示词原样移植自网页版 llm.py。TRANSLATE_SYSTEM 的「上文 + 纠错」是Alan明确要求保留的。
 export const TRANSLATE_SYSTEM = (target) =>
   `你是课堂同声传译。把用户给出的【当前句】翻译成自然、准确的${target}。` +
   "【上文】只用于理解语境，不要翻译上文。专业术语可在译文后括号保留原词（原词若明显识别错误，括号里写正确拼写）。" +
@@ -2402,7 +2402,7 @@ h, n = re.subn(r'<script src="https://[^"]*marked[^"]*"></script>',
   '<script src="vendor/marked.umd.js"></script>', h); assert n == 1
 rep('<script src="/static/app.js"></script>', '<script src="bridge.js"></script>\n<script src="app.js"></script>')
 # 底部署名
-rep('</main>', '</main>\n<footer class="powered">Powered by 南瓜 · <span id="version"></span></footer>')
+rep('</main>', '</main>\n<footer class="powered">Powered by Alan · <span id="version"></span></footer>')
 rep('  [hidden] { display: none !important; }', '''  [hidden] { display: none !important; }
   .powered { text-align: center; font-size: 12px; color: var(--muted); padding: 0 0 10px; }''')
 # 设置里加「打开记录文件夹」
@@ -2420,7 +2420,7 @@ rep('<dialog id="settings">', '''<dialog id="privacy">
       <tr><td>苹果识别、苹果翻译</td><td>只在这台电脑上处理，不上传</td></tr>
       <tr><td>Gemini 翻译、课堂笔记、课后精讲</td><td>转写的文字会发送给 Google</td></tr>
       <tr><td>Claude 翻译、课堂笔记、课后精讲</td><td>转写的文字会发送给 Anthropic</td></tr>
-      <tr><td>南瓜（作者）</td><td>收不到任何数据：App 里没有统计、没有上传</td></tr>
+      <tr><td>Alan（作者）</td><td>收不到任何数据：App 里没有统计、没有上传</td></tr>
     </table>
     <p class="hint">课堂录音前，请先确认学校和老师的规定。</p>
   </section>
@@ -2433,7 +2433,7 @@ rep('  dialog [hidden] { display: none !important; }', '''  dialog [hidden] { di
   table.privacy td:first-child { color: var(--muted); width: 44%; }''')
 p.write_text(h)
 EOF
-grep -c "Powered by 南瓜" src/renderer/index.html
+grep -c "Powered by Alan" src/renderer/index.html
 ```
 Expected: 打印 `1`。
 
@@ -2515,9 +2515,9 @@ Expected: 打印「已全部替换」。
 - [ ] **Step 6: 冒烟检查界面能加载、无报错、有署名**
 
 Run（在 `desktop/` 下）：`CT_SMOKE_OPEN=1 npx electron . 2>&1 | grep -E "window-loaded|CONSOLE"`
-Expected: 一行 `window-loaded {"powered":"Powered by 南瓜 · v0.1.0","asr":["苹果自带（最快，边说边出字）"]}`，且没有任何 `CONSOLE` 开头的报错行（若有 `Refused to …`（内容安全策略）或 `is not defined`，按报错修正后重跑）。
+Expected: 一行 `window-loaded {"powered":"Powered by Alan · v0.1.0","asr":["苹果自带（最快，边说边出字）"]}`，且没有任何 `CONSOLE` 开头的报错行（若有 `Refused to …`（内容安全策略）或 `is not defined`，按报错修正后重跑）。
 
-- [ ] **Step 7: 手动验证（在南瓜的 Mac 上，`npm start`）**
+- [ ] **Step 7: 手动验证（在Alan的 Mac 上，`npm start`）**
 
 逐项确认并在提交说明里记录结果：
 1. 第一次打开弹出隐私说明，按 Esc 关不掉，点「我知道了」后再开 App 不再弹出
@@ -2526,13 +2526,13 @@ Expected: 一行 `window-loaded {"powered":"Powered by 南瓜 · v0.1.0","asr":[
 4. 麦克风选「电脑内部声音」，播放一段英文视频：能出字幕
 5. 「AI 模型与 API」：能保存、修改、删除 Gemini key；填错 key 提示「不能用」；「打开记录文件夹」能打开「文稿/课堂同传」
 6. 结束录制：自动切到「课后精讲」并生成；「导出 PDF」弹出保存框，生成的 PDF 有页眉和页码；「导出 Markdown」能下载
-7. 窗口底部显示「Powered by 南瓜 · v0.1.0」
+7. 窗口底部显示「Powered by Alan · v0.1.0」
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add desktop/scripts/vendor.mjs desktop/src/renderer
-git commit -m "桌面版：界面移植（内部通信、隐私说明、Powered by 南瓜、PDF 导出）"
+git commit -m "桌面版：界面移植（内部通信、隐私说明、Powered by Alan、PDF 导出）"
 ```
 
 ---
@@ -2553,7 +2553,7 @@ git commit -m "桌面版：界面移植（内部通信、隐私说明、Powered 
 ```yaml
 appId: local.nangua.classtranslator
 productName: 课堂同传
-copyright: Powered by 南瓜
+copyright: Powered by Alan
 directories:
   output: dist
 files:
@@ -2661,7 +2661,7 @@ Expected: 打印「签名完整」；打包后的 App 用内置的苹果识别�
 - [ ] **Step 5: 验证 dmg 安装流程**
 
 Run：`open "dist/课堂同传-0.1.0-arm64.dmg"`，把 App 拖进「应用程序」，双击打开。
-Expected: 出现「无法验证开发者」类提示时，到 系统设置 → 隐私与安全性 点「仍要打开」后能正常启动；隐私说明、麦克风授权、底部「Powered by 南瓜 · v0.1.0」都正常。把这几步截图留给第 4 期写下载页说明用。
+Expected: 出现「无法验证开发者」类提示时，到 系统设置 → 隐私与安全性 点「仍要打开」后能正常启动；隐私说明、麦克风授权、底部「Powered by Alan · v0.1.0」都正常。把这几步截图留给第 4 期写下载页说明用。
 
 - [ ] **Step 6: Commit**
 

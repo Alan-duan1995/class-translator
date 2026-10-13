@@ -1,4 +1,4 @@
-// 全部提示词原样移植自网页版 llm.py。TRANSLATE_SYSTEM 的「上文 + 纠错」是南瓜明确要求保留的。
+// 全部提示词原样移植自网页版 llm.py。TRANSLATE_SYSTEM 的「上文 + 纠错」是Alan明确要求保留的。
 export const TRANSLATE_SYSTEM = (target) =>
   `你是课堂同声传译。把用户给出的【当前句】翻译成自然、准确的${target}。` +
   "【上文】只用于理解语境，不要翻译上文。专业术语可在译文后括号保留原词（原词若明显识别错误，括号里写正确拼写）。" +

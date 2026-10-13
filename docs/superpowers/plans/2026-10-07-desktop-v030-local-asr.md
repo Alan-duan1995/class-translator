@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- 第 1、2 期的全部约束继续有效（见前两份计划的 Global Constraints）：简体中文、不用表情符号、提交不带 Claude 署名、key 只走 safeStorage、不开网络端口、翻译保留「前 3 句上文 + 识别可能有错字」提示词、发布前要南瓜明确同意、动虚拟机前先问。
+- 第 1、2 期的全部约束继续有效（见前两份计划的 Global Constraints）：简体中文、不用表情符号、提交不带 Claude 署名、key 只走 safeStorage、不开网络端口、翻译保留「前 3 句上文 + 识别可能有错字」提示词、发布前要Alan明确同意、动虚拟机前先问。
 - 识别方式显示名：`本地实时（英语，免费，边说边出字）`，内部代号 `local`。
 - 本地实时只支持说话人语言为英语；其他语言要给出明确提示，不能输出乱码字幕。
 - 一句话的平均把握低于 0.5 的丢弃（旁边有人说中文、日语时把握约 0.3–0.4，英语约 0.66–0.79）。
@@ -1031,7 +1031,7 @@ git commit -m "打包：带上本地实时识别的运行库和模型，版本 0
 
 - [ ] **Step 1: 征得同意，确认虚拟机可用**
 
-先问南瓜：「要在 Windows 11 虚拟机里装 0.3.0 测试版，可以吗？」同意后：
+先问Alan：「要在 Windows 11 虚拟机里装 0.3.0 测试版，可以吗？」同意后：
 ```bash
 prlctl list -a | grep "Windows 11" | grep -q running || prlctl resume "Windows 11"
 prlctl exec "Windows 11" --current-user cmd /c "echo ok"
@@ -1082,9 +1082,9 @@ rm -f ~/Desktop/课堂同传.lnk
 ```
 Expected（两种架构都要满足）：`installed=True`；界面 0 个报错，`asr` 为「本地实时」「云端」两项，且本地实时排第一；本地实时冒烟输出至少 2 条 `line`（含 `thermodynamics`）和 `done`，没有「本地实时识别出错」「跟不上」。虚拟机没填 key 时会有一条「课堂笔记更新失败…需要先填写 key」，属正常。最后一行删掉 Parallels 共享桌面上生成的坏快捷方式。
 
-- [ ] **Step 4: 和南瓜一起做的人工检查**
+- [ ] **Step 4: 和Alan一起做的人工检查**
 
-请南瓜在虚拟机里打开课堂同传（现在装的是 ARM64 版）：
+请Alan在虚拟机里打开课堂同传（现在装的是 ARM64 版）：
 1. 识别方式默认是「本地实时」；对着麦克风说英文，灰色草稿边说边出，句子说完马上定稿
 2. 没填 key 时只有英文字幕；填了 Gemini key 后每句 1–2 秒内出中文翻译
 3. 麦克风选「电脑内部声音」，放一段英文视频，能出字幕
@@ -1132,7 +1132,7 @@ Run：`rm -rf ~/Downloads/ct-win-test; prlctl exec "Windows 11" --current-user c
 5. 「隐私」表格里在苹果那一行后面加：`| 本地实时识别 | 只在你的电脑上处理，不上传 |`
 6. 「许可证」一节替换为：
 ```markdown
-[MIT](LICENSE) · Powered by 南瓜
+[MIT](LICENSE) · Powered by Alan
 
 安装包里包含的第三方组件和模型（sherpa-onnx、Kroko ASR 英语社区模型、Silero VAD 等）及其许可证见 `desktop/assets/THIRD_PARTY_NOTICES.md`。其中本地实时识别使用的 Kroko 社区模型以 CC-BY-SA 协议提供，由 Banafo 发布，课堂同传未作修改。
 ```
@@ -1148,7 +1148,7 @@ git add README.md
 git commit -m "说明：本地实时识别，v0.3.0"
 ```
 
-- [ ] **Step 3: 准备发布说明草稿，停下等南瓜确认**
+- [ ] **Step 3: 准备发布说明草稿，停下等Alan确认**
 
 草稿：
 
@@ -1167,6 +1167,6 @@ git commit -m "说明：本地实时识别，v0.3.0"
 >
 > 课堂录音前，请先确认学校和老师的规定。
 >
-> Powered by 南瓜
+> Powered by Alan
 
-列出将要推送的提交、四个安装包（显示名、文件名、大小）、发布说明全文和尚未验证的事项，**等南瓜明确回复同意后**再执行推送和 `gh release create v0.3.0 …`（附件显示名：`课堂同传 0.3.0 Mac（苹果芯片 M1–M4）`、`课堂同传 0.3.0 Mac（Intel 芯片）`、`课堂同传 0.3.0 Windows（大多数电脑）`、`课堂同传 0.3.0 Windows（ARM 芯片）`）。发布后核对附件名并下载其中一个比对校验值。
+列出将要推送的提交、四个安装包（显示名、文件名、大小）、发布说明全文和尚未验证的事项，**等Alan明确回复同意后**再执行推送和 `gh release create v0.3.0 …`（附件显示名：`课堂同传 0.3.0 Mac（苹果芯片 M1–M4）`、`课堂同传 0.3.0 Mac（Intel 芯片）`、`课堂同传 0.3.0 Windows（大多数电脑）`、`课堂同传 0.3.0 Windows（ARM 芯片）`）。发布后核对附件名并下载其中一个比对校验值。

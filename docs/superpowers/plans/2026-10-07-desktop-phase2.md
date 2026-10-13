@@ -25,8 +25,8 @@
 - Windows 安装包文件名必须是英文：`ClassTranslator-<版本>-win-<x64|arm64>-setup.exe`。
 - 安装包里只带 onnxruntime-web 实际用到的 4 个文件（`ort.node.min.js`、`ort.node.min.mjs`、`ort-wasm-simd-threaded.mjs`、`ort-wasm-simd-threaded.wasm`），其余约 120 MB 不打包。
 - 版本号改为 `0.2.0`。
-- 虚拟机（Parallels「Windows 11」）属于南瓜：启动、恢复、改设置前先问；Rosetta 安装前先问。
-- 发布到 GitHub（推送、Release）前必须列出内容并得到南瓜明确同意。
+- 虚拟机（Parallels「Windows 11」）属于Alan：启动、恢复、改设置前先问；Rosetta 安装前先问。
+- 发布到 GitHub（推送、Release）前必须列出内容并得到Alan明确同意。
 
 ## Review Focus
 
@@ -1046,7 +1046,7 @@ afconvert -f WAVE -d LEI16@16000 -c 1 $T/a.aiff $T/a.wav
 CT_SMOKE_WAV=$T/a.wav CT_SMOKE_ASR=cloud CT_RECORDS_DIR=$T/records npx electron . > $T/out.txt 2>&1
 grep SMOKE $T/out.txt | grep -E '"line"|"error"|"done"'
 ```
-Expected: 有 key 时打印含 `thermodynamics` 的 `line`，且 `tr` 已带中文译文；没 key 时打印一条「还没填写 Gemini 的 API key」的 `error`（只一条），最后都有 `done`。系统弹出钥匙串访问询问时，请南瓜点「允许」。若额度用完，会看到「额度用完」提示，这也算通过（说明人声检测通过、请求已发出）。
+Expected: 有 key 时打印含 `thermodynamics` 的 `line`，且 `tr` 已带中文译文；没 key 时打印一条「还没填写 Gemini 的 API key」的 `error`（只一条），最后都有 `done`。系统弹出钥匙串访问询问时，请Alan点「允许」。若额度用完，会看到「额度用完」提示，这也算通过（说明人声检测通过、请求已发出）。
 
 - [ ] **Step 6: Commit**
 
@@ -1195,11 +1195,11 @@ git commit -m "桌面版界面：云端识别选项、Windows 录电脑声音、
 
 - [ ] **Step 1: 征得同意后安装 Rosetta**
 
-Windows 安装程序的制作工具（makensis）只有 Intel 版本，苹果芯片 Mac 需要 Rosetta 才能运行（上次报错 -86）。**先问南瓜**：「需要安装苹果官方的 Rosetta 转译工具，可以吗？」同意后运行：
+Windows 安装程序的制作工具（makensis）只有 Intel 版本，苹果芯片 Mac 需要 Rosetta 才能运行（上次报错 -86）。**先问Alan**：「需要安装苹果官方的 Rosetta 转译工具，可以吗？」同意后运行：
 ```bash
 softwareupdate --install-rosetta --agree-to-license && arch -x86_64 /usr/bin/true && echo Rosetta 可用
 ```
-Expected: 打印「Rosetta 可用」。若南瓜不同意：Windows 只出免安装的 zip 版（把下面 `win.target` 改成 `zip`，安装程序相关检查跳过），并在 ledger 记一条 Ruling。
+Expected: 打印「Rosetta 可用」。若Alan不同意：Windows 只出免安装的 zip 版（把下面 `win.target` 改成 `zip`，安装程序相关检查跳过），并在 ledger 记一条 Ruling。
 
 - [ ] **Step 2: 改打包配置**
 
@@ -1208,7 +1208,7 @@ Expected: 打印「Rosetta 可用」。若南瓜不同意：Windows 只出免安
 ```yaml
 appId: local.nangua.classtranslator
 productName: 课堂同传
-copyright: Powered by 南瓜
+copyright: Powered by Alan
 directories:
   output: dist
 files:
@@ -1342,7 +1342,7 @@ git commit -m "打包：Windows 安装程序、精简人声检测运行库、打
 
 - [ ] **Step 1: 征得同意，准备虚拟机**
 
-先问南瓜：「要在 Parallels 的 Windows 11 虚拟机里装测试版，需要虚拟机开着；另外想打开虚拟机的麦克风共享（Parallels → 硬件 → 声音与摄像头 → 麦克风），可以吗？」同意后确认：
+先问Alan：「要在 Parallels 的 Windows 11 虚拟机里装测试版，需要虚拟机开着；另外想打开虚拟机的麦克风共享（Parallels → 硬件 → 声音与摄像头 → 麦克风），可以吗？」同意后确认：
 ```bash
 prlctl list -a | grep "Windows 11"
 prlctl exec "Windows 11" --current-user cmd /c "echo ok"
@@ -1390,9 +1390,9 @@ Expected: 虚拟机里没填 key，所以应看到**一条**「还没填写 Gemi
 先在虚拟机里卸载 arm64 版：`prlctl exec "Windows 11" --current-user powershell -NoProfile -Command "Get-ChildItem \"$env:LOCALAPPDATA\Programs\" -Recurse -Filter 'Uninstall*.exe' | Where-Object DirectoryName -match '课堂同传' | ForEach-Object { Start-Process $_.FullName -ArgumentList '/S' -Wait }"`，再把 Step 2 脚本里的 `win-arm64` 换成 `win-x64` 重跑 Step 2、Step 3。
 Expected: 与 arm64 版相同。
 
-- [ ] **Step 5: 和南瓜一起做的人工检查（需要真实声音）**
+- [ ] **Step 5: 和Alan一起做的人工检查（需要真实声音）**
 
-请南瓜在虚拟机里：
+请Alan在虚拟机里：
 1. 打开课堂同传，在「AI 模型与 API」里填 Gemini key
 2. 麦克风下拉框能看到麦克风（看不到就按提示去 Windows 设置里打开麦克风权限）；选麦克风，对着 Mac 说英文，能出字幕和翻译
 3. 选「电脑内部声音（视频/电影）」，在虚拟机里播一段英文视频，能出字幕
@@ -1404,7 +1404,7 @@ Expected: 与 arm64 版相同。
 
 Run：`rm -rf ~/Downloads/ct-win-test`，并在虚拟机里删除第 1 期试验留下的 `%LOCALAPPDATA%\ct-test`：
 `prlctl exec "Windows 11" --current-user cmd /c "rmdir /s /q %LOCALAPPDATA%\ct-test"`
-（测试安装的课堂同传保留，南瓜可以继续用；要卸载时在 Windows「设置 → 应用」里卸载。）
+（测试安装的课堂同传保留，Alan可以继续用；要卸载时在 Windows「设置 → 应用」里卸载。）
 
 ---
 
@@ -1415,7 +1415,7 @@ Run：`rm -rf ~/Downloads/ct-win-test`，并在虚拟机里删除第 1 期试验
 
 - [ ] **Step 1: 更新 README**
 
-1. 把 `<p align="center"><b>预览版 v0.1.0</b> · 免费 · Powered by 南瓜</p>` 改为 `<p align="center"><b>预览版 v0.2.0</b> · 免费 · Powered by 南瓜</p>`
+1. 把 `<p align="center"><b>预览版 v0.1.0</b> · 免费 · Powered by Alan</p>` 改为 `<p align="center"><b>预览版 v0.2.0</b> · 免费 · Powered by Alan</p>`
 2. 把「支持哪些电脑」表格替换为：
 ```markdown
 | 电脑 | 语音识别 | 能不能录电脑内部声音 |
@@ -1456,7 +1456,7 @@ Run：`rm -rf ~/Downloads/ct-win-test`，并在虚拟机里删除第 1 期试验
 8. 「给开发者」里 `npm run dist` 那行后面加一行：`  npm run dist:win  # 打包 Windows 安装程序（苹果芯片 Mac 需要先装 Rosetta）`
 9. 「许可证」一节改为：
 ```markdown
-[MIT](LICENSE) · Powered by 南瓜
+[MIT](LICENSE) · Powered by Alan
 
 人声检测使用 Silero VAD 模型（MIT 许可证，见 `desktop/assets/SILERO_LICENSE.txt`）。
 ```
@@ -1471,7 +1471,7 @@ git add README.md
 git commit -m "说明：Windows 和旧 Mac 的安装与使用，v0.2.0"
 ```
 
-- [ ] **Step 3: 准备发布说明草稿，停下等南瓜确认**
+- [ ] **Step 3: 准备发布说明草稿，停下等Alan确认**
 
 草稿（不含表情符号）：
 
@@ -1489,9 +1489,9 @@ git commit -m "说明：Windows 和旧 Mac 的安装与使用，v0.2.0"
 >
 > 课堂录音前，请先确认学校和老师的规定。
 >
-> Powered by 南瓜
+> Powered by Alan
 
-列出将要推送的提交、将要上传的 4 个安装包（文件名、大小）、发布说明全文，**等南瓜明确回复同意后**再执行：
+列出将要推送的提交、将要上传的 4 个安装包（文件名、大小）、发布说明全文，**等Alan明确回复同意后**再执行：
 ```bash
 git push origin main
 gh release create v0.2.0 --target main --title "课堂同传 v0.2.0 预览版" --notes-file <草稿文件> dist/ClassTranslator-0.2.0-*.dmg dist/ClassTranslator-0.2.0-win-*-setup.exe

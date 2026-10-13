@@ -3,7 +3,7 @@
   "productName": "课堂同传",
   "version": "0.7.2",
   "description": "课堂实时字幕与翻译",
-  "author": "南瓜",
+  "author": "Alan",
   "license": "MIT",
   "type": "module",
   "main": "src/main/main.js",
