@@ -12,8 +12,8 @@ test("版本比较：只有更新的才算新版", () => {
 
 test("检查：有新版给出版本号；已是最新 / 连不上 / 不认识的地址都当作没有新版", async () => {
   const to = (tag) => async (url) => {
-    assert.equal(url, "https://github.com/nangua110/class-translator/releases/latest");
-    return `https://github.com/nangua110/class-translator/releases/tag/${tag}`;
+    assert.equal(url, "https://github.com/Alan-duan1995/class-translator/releases/latest");
+    return `https://github.com/Alan-duan1995/class-translator/releases/tag/${tag}`;
   };
   assert.equal(await latestVersion({ current: "0.4.1", redirectOf: to("v0.5.0") }), "0.5.0");
   assert.equal(await latestVersion({ current: "0.5.0", redirectOf: to("v0.5.0") }), null);

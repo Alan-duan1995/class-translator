@@ -1,3 +1,4 @@
+import { speechConfig, normalizeSpeechBase, validateSpeechConfig } from "./cloud/openai-asr.js";
 import { CLAUDE_MODELS, GEMINI_MODELS, OPENAI_PRESETS, PROVIDER_LABELS as LABEL, TARGET_LANGS, TRANSLATORS } from "./langs.js";
 import { friendly, simplify } from "./text.js";
 import { isAuthError, TimeoutError } from "./llm/errors.js";
@@ -63,6 +64,7 @@ export function createApi({ settings, llm, appleTr, records, caps, version, open
       gemini_model: settings.pref("geminiModel", "auto"), gemini_models: GEMINI_MODELS,
       claude_model: settings.pref("claudeModel", "claude-opus-5-5"), claude_models: CLAUDE_MODELS,
       openai: { ...settings.keyState("openai"), ...openaiConfig() }, openai_presets: OPENAI_PRESETS,
+      speech: { ...settings.keyState("speech"), base: speechConfig(settings).base, model: speechConfig(settings).model },
       translators,
       apple: caps.appleTranslate ? await appleTr.status(src, tgt) : "unsupported",
     };
@@ -70,6 +72,23 @@ export function createApi({ settings, llm, appleTr, records, caps, version, open
 
   async function saveSettings(b = {}) {
     const notes = [];
+    const touchedSpeech = ["speech_base", "speech_model", "speech_key"].some(k => typeof b[k] === "string");
+    if (touchedSpeech) {
+      const old = speechConfig(settings);
+      const next = {
+        base: typeof b.speech_base === "string" ? normalizeSpeechBase(b.speech_base) : old.base,
+        model: typeof b.speech_model === "string" ? b.speech_model.trim() : old.model,
+        key: b.clear_speech_key ? "" : String(b.speech_key ?? "").trim() || old.key,
+      };
+      const error = validateSpeechConfig(next);
+      if (error) return { ok: false, msg: error };
+      try {
+        if (next.key) settings.setKey("speech", next.key); else settings.clearKey("speech");
+        settings.setPref("speechBase", next.base);
+        settings.setPref("speechModel", next.model);
+      } catch (e) { return { ok: false, msg: e.message }; }
+      notes.push("语音配置已保存；在识别方式中选择「其他语音模型」即可使用");
+    } else if (b.clear_speech_key) settings.clearKey("speech");
     if (b.gemini_model in GEMINI_MODELS) settings.setPref("geminiModel", b.gemini_model);
     if (b.claude_model in CLAUDE_MODELS) settings.setPref("claudeModel", b.claude_model);
     for (const p of ["gemini", "claude"]) {

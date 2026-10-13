@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const KEY_RE = /^[\w\-.]{10,300}$/;
-const PROVIDERS = ["gemini", "claude", "openai"];
+const PROVIDERS = ["gemini", "claude", "openai", "speech"];
 
 const V2 = "v2:"; // 用 App 自己的加密存的 key 带这个开头；没有的是以前用系统钥匙串存的
 

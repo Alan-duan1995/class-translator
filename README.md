@@ -4,7 +4,7 @@
 
 <p align="center">上课听不懂英文？课堂同传把老师说的话实时变成字幕，并翻译成中文；下课后自动整理成课后精讲。</p>
 
-<p align="center"><b>预览版 v0.7.0</b> · 免费 · powered by Alan</p>
+<p align="center"><b>预览版 v0.7.1</b> · 免费 · powered by Alan</p>
 
 <p align="center"><a href="../../releases/latest"><b>下载最新版</b></a></p>
 
@@ -174,3 +174,15 @@ Gemini 每个模型每天都有免费次数，用完后第二天自动恢复。�
 [MIT](LICENSE) · powered by Alan
 
 安装包里包含的第三方组件和模型（sherpa-onnx、Kroko ASR 英语社区模型、Bergamot Translator、Firefox Translations 翻译模型、Silero VAD 等）及其许可证见 `desktop/assets/THIRD_PARTY_NOTICES.md`。其中本地实时识别使用的 Kroko 社区模型以 CC-BY-SA 协议提供，由 Banafo 发布，课堂同传未作修改。
+
+## 自定义语音识别（v0.7.1）
+
+在「AI 模型与 API → 其他语音模型」填写接口地址、语音模型名和 Key，保存后在「识别方式」选择「其他语音模型」。
+
+- 服务须支持 OpenAI 兼容的 `POST /audio/transcriptions`：接收 WAV 文件、模型名和语言，返回 JSON `text`。接口地址可填基础地址（如 `https://api.openai.com/v1`）或完整转写地址。
+- 模型必须支持音频转写，不能用普通聊天模型代替。翻译与语音识别可独立配置。
+- 本机服务（localhost、127.0.0.1、::1）允许 HTTP 和免 Key；远程服务要求 HTTPS 和 Key。
+- 音频按停顿分段发送，字幕在片段识别完成后出现；不是逐字流式识别。自动模式仅显示中英文。
+- Key 加密保存。保存时仅校验配置格式，首次识别时验证服务；不会在保存时上传测试音频。
+
+协议参考：[OpenAI 语音转写接口](https://developers.openai.com/api/reference/resources/audio/subresources/transcriptions/methods/create)。

@@ -410,3 +410,19 @@ test("选了「本地翻译」但不是英语译中文：说明只支持哪一�
   await say(ctx);
   assert.match(translated(ctx), /本地翻译目前只支持英语译成简体中文/);
 });
+
+test('其他语音识别可切换、保留时间、字幕继续走所选翻译', async () => {
+  const { s, sent, asrs } = setup();
+  s.audio(pcm(2));
+  s.configure({ asr: 'speech' });
+  assert.equal(asrs[0].closed, true);
+  s.audio(pcm(1));
+  assert.equal(asrs[1].kind, 'speech');
+  assert.equal(asrs[1].offset, 2);
+  asrs[1].emit('message', { type: 'final', source: 'cloud', text: 'Hello world.', lang: 'en', start: 0.5 });
+  await s.idle();
+  assert.equal(sent.find(m => m.type === 'line').t, 2.5);
+  assert.equal(sent.find(m => m.type === 'translation').tr, '译:Hello world.');
+  s.configure({ asr: 'cloud' });
+  assert.equal(asrs[1].closed, true);
+});

@@ -15,6 +15,7 @@ import { registerIpc } from "./ipc.js";
 import { Session } from "./session.js";
 import { savePdf } from "./pdf.js";
 import { VoiceDetector } from "./cloud/vad.js";
+import { SpeechClient } from "./cloud/openai-asr.js";
 import { CloudASR } from "./cloud/asr.js";
 import { LocalASR } from "./local/asr.js";
 import { AudioRecorder, cleanOldAudio } from "./store/audio.js";
@@ -62,6 +63,7 @@ function build() {
     send, llm, appleTr: caps.appleTranslate ? appleTr : NO_APPLE_TR, localTr, records, caps,
     makeRecorder: (name) => (settings.pref("saveAudio", false) || process.env.CT_SMOKE_AUDIO ? new AudioRecorder(records.audioFile(name)) : null),
     makeAsr: (kind, speaker, offset) => {
+      if (kind === "speech") return new CloudASR({ kind, llm: { recognize: (wav) => new SpeechClient(settings).recognize(wav, speaker) }, vad, speaker, offset });
       if (kind === "cloud") return new CloudASR({ llm, vad, speaker, offset });
       if (kind === "local") return new LocalASR({ workerPath: localWorker, modelDir, speaker, offset });
       return new AppleASR(bins.asr, speaker, offset);

@@ -11,10 +11,10 @@ const NET_WARN_MS = 60_000;            // 网络慢的提示最多一分钟一�
 
 /** 云端识别（旧 Mac、Windows 用）：按音量断句 → 人声检测 → Gemini 听写。翻译由 Session 另外做（带上文）。接口和 AppleASR 一样 */
 export class CloudASR extends EventEmitter {
-  constructor({ llm, vad, speaker, offset, now = Date.now }) {
+  constructor({ llm, vad, speaker, offset, kind = "cloud", now = Date.now }) {
     super();
     Object.assign(this, { llm, vad, speaker, offset, now });
-    this.kind = "cloud";
+    this.kind = kind;
     this.segmenter = new Segmenter();
     this.items = [];            // 等待识别的句子（按时间顺序）
     this.running = null;        // 正在处理队列的循环
@@ -67,7 +67,7 @@ export class CloudASR extends EventEmitter {
     try {
       voice = await this.vad.hasVoice(seg.audio);
     } catch { // 人声检测用不了：照常识别（可能多用一些额度），只提示一次
-      this.#note("vad", "人声检测没能启动，改为直接识别，可能会多用一些 Gemini 额度");
+      this.#note("vad", "人声检测没能启动，改为直接识别，可能会多用一些识别额度");
     }
     if (!voice || this.dead) return; // 只有杂音 / 静音：不发请求
     this.emit("message", { type: "status", recognizing: true });

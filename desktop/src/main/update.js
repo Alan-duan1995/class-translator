@@ -1,5 +1,5 @@
 // 新版发布在 GitHub Releases；检查更新只看「最新版」页面跳到哪个版本号，不带任何个人信息
-export const RELEASES = "https://github.com/nangua110/class-translator/releases";
+export const RELEASES = "https://github.com/Alan-duan1995/class-translator/releases";
 
 const parts = (v) => (/^\d+\.\d+\.\d+$/.test(v) ? v.split(".").map(Number) : null);
 export function isNewer(latest, current) {

@@ -10,13 +10,13 @@ let elapsed = 0, lastTick = 0, summaryMd = "";
 const SYSTEM = "__system__"; // 音源选"电脑内部声音"：由服务端直接录系统声音，不用麦克风
 const lines = {};
 const SPEAKERS = { auto: "自动（中/英）", en: "英语", zh: "中文", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语" };
-const ASRS = { apple: "苹果自带（最快，边说边出字）", local: "本地实时（英语，免费，边说边出字）", cloud: "云端（Gemini，需要填 key）" };
+const ASRS = { apple: "苹果自带（最快，边说边出字）", local: "本地实时（英语，免费，边说边出字）", cloud: "云端（Gemini，需要填 key）", speech: "其他语音模型（自定义接口）" };
 const ALL_SPEAKERS = { ...SPEAKERS };
 // 苹果识别和本地实时都要事先确定语言，做不到「自动（中/英）」；云端识别可以
 function refreshSpeakers() {
   for (const k of Object.keys(SPEAKERS)) delete SPEAKERS[k];
   Object.assign(SPEAKERS, ALL_SPEAKERS);
-  if ($("asr").value !== "cloud") delete SPEAKERS.auto; // 只有云端识别能同时认中英文
+  if (!["cloud", "speech"].includes($("asr").value)) delete SPEAKERS.auto; // 只有云端识别能同时认中英文
   fillSelect($("speaker"), SPEAKERS, load("speaker", "en", SPEAKERS));
 }
 const TRANSLATORS = { gemini: "Gemini（推荐，会纠正识别错字）", claude: "Claude（会纠正识别错字）", openai: "其他模型（DeepSeek、OpenAI 等）", apple: "苹果自带（免费、本地、直译）", local: "本地翻译（免费、不联网、直译）" };
@@ -457,7 +457,9 @@ $("exportBtn").onclick = () => {
 
 // ---------- AI 模型与 API：key（修改 / 删除）、模型、苹果翻译 ----------
 // 每家 key 的编辑状态：keep 保持不变 / edit 正在填新的 / remove 保存后删除
-const PROVIDERS = ["gemini", "claude", "openai"];
+const PROVIDERS = ["gemini", "claude", "openai", "speech"];
+let speechDirty = false;
+for (const id of ["speechBase", "speechModel", "speechKey"]) $(id).oninput = () => { speechDirty = true; };
 const keyMode = {};
 function showKey(p, k, mode) {
   keyMode[p] = mode;
@@ -496,7 +498,10 @@ async function openSettings() {
   let st;
   try { st = await (await apiFetch(`/api/settings?src=${src}&tgt=${$("target").value}`)).json(); }
   catch { return toast("连不上本地服务，打不开"); }
-  keys = { gemini: st.gemini, claude: st.claude, openai: st.openai };
+  keys = { gemini: st.gemini, claude: st.claude, openai: st.openai, speech: st.speech };
+  $("speechBase").value = st.speech.base;
+  $("speechModel").value = st.speech.model;
+  speechDirty = false;
   for (const p of PROVIDERS) { $(p + "Key").value = ""; showKey(p, keys[p], "keep"); }
   presets = st.openai_presets;
   fillSelect($("openaiPreset"), Object.fromEntries(Object.entries(presets).map(([k, v]) => [k, v.label])), st.openai.preset);
@@ -532,6 +537,8 @@ $("settingsSave").onclick = async () => {
     if (keyMode[p] === "remove") body[`clear_${p}_key`] = true;
     else body[`${p}_key`] = $(p + "Key").value; // 空着就是不修改
   }
+  if (keyMode.speech === "remove") body.clear_speech_key = true;
+  if (speechDirty) Object.assign(body, { speech_base: $("speechBase").value, speech_model: $("speechModel").value, speech_key: $("speechKey").value });
   if (keyMode.openai === "remove") body.clear_openai_key = true;
   if (openaiDirty) Object.assign(body, { openai_preset: $("openaiPreset").value, openai_base: $("openaiBase").value,
     openai_model: $("openaiModel").value, openai_key: $("openaiKey").value });

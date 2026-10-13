@@ -183,7 +183,7 @@ test("更新：检查有没有新版、打开下载页", async () => {
   const { api, calls } = setup();
   assert.deepEqual(await api("/api/update-check", "POST"), { current: "0.1.0", latest: "9.9.9" });
   await api("/api/update-page", "POST");
-  assert.deepEqual(calls, [["open", "https://github.com/nangua110/class-translator/releases/latest"]]);
+  assert.deepEqual(calls, [["open", "https://github.com/Alan-duan1995/class-translator/releases/latest"]]);
 });
 
 // ---------- 其他模型（OpenAI 兼容接口） ----------
@@ -246,4 +246,21 @@ test("其他模型：本地模型不用 key；删除 key", async () => {
   assert.equal((await api("/api/settings", "POST", { clear_openai_key: true })).ok, true);
   assert.equal(settings.getKey("openai"), "");
   assert.equal(settings.pref("openaiBase"), "https://api.example.com/v1");
+});
+
+test('语音识别配置独立保存、隐藏 Key、空白保留、删除与地址校验', async () => {
+  const { api, settings } = setup();
+  const body = { speech_base: 'https://speech.example/v1/audio/transcriptions/', speech_model: 'whisper-1', speech_key: 'speech-secret-12345' };
+  assert.equal((await api('/api/settings', 'POST', body)).ok, true);
+  const st = await api('/api/settings');
+  assert.equal(st.speech.base, 'https://speech.example/v1');
+  assert.equal(st.speech.model, 'whisper-1');
+  assert.equal(JSON.stringify(st).includes(body.speech_key), false);
+  assert.equal(settings.getKey('openai'), '');
+  assert.equal((await api('/api/settings', 'POST', { ...body, speech_key: '' })).ok, true);
+  assert.equal(settings.getKey('speech'), body.speech_key);
+  assert.equal((await api('/api/settings', 'POST', { ...body, speech_base: 'http://unsafe.example' })).ok, false);
+  assert.equal(settings.pref('speechBase'), 'https://speech.example/v1');
+  assert.equal((await api('/api/settings', 'POST', { clear_speech_key: true })).ok, true);
+  assert.equal(settings.getKey('speech'), '');
 });

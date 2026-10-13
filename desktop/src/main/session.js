@@ -62,6 +62,7 @@ export class Session {
   asrKind() {
     if (this.cfg.asr === "apple" && this.caps.appleAsr) return "apple";
     if (this.cfg.asr === "local" && this.caps.localAsr) return "local";
+    if (this.cfg.asr === "speech" && this.caps.cloudAsr) return "speech";
     if (this.cfg.asr === "cloud" && this.caps.cloudAsr) return "cloud";
     return null;
   }
