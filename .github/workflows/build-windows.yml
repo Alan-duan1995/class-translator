@@ -51,7 +51,9 @@ jobs:
           }
       - run: npm run vendor
       - run: npx electron-builder --win --x64 -c.nsis.useZip=false --publish never
+        shell: bash
       - run: npx electron-builder --win --arm64 --publish never
+        shell: bash
       - run: node scripts/check-package.mjs
       - uses: actions/upload-artifact@v4
         with:
