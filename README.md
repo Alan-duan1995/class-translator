@@ -4,7 +4,7 @@
 
 <p align="center">上课听不懂英文？课堂同传把老师说的话实时变成字幕，并翻译成中文；下课后自动整理成课后精讲。</p>
 
-<p align="center"><b>预览版 v0.7.1</b> · 免费 · powered by Alan</p>
+<p align="center"><b>预览版 v0.7.2</b> · 免费 · powered by Alan</p>
 
 <p align="center"><a href="../../releases/latest"><b>下载最新版</b></a></p>
 

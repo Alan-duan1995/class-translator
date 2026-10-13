@@ -1,0 +1,61 @@
+name: Windows installers
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['desktop/**', '.github/workflows/build-windows.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Download bundled models
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = 'sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06'
+          New-Item -ItemType Directory -Force models/kroko-en, models/mt-en-zh, model-download | Out-Null
+          gh release download asr-models -R k2-fsa/sherpa-onnx -p "$name.tar.bz2" -D model-download
+          if ($LASTEXITCODE -ne 0) { throw 'ASR model download failed' }
+          tar -xjf "model-download/$name.tar.bz2" -C model-download
+          if ($LASTEXITCODE -ne 0) { throw 'ASR model extraction failed' }
+          foreach ($file in 'encoder.onnx','decoder.onnx','joiner.onnx','tokens.txt') {
+            Copy-Item "model-download/$name/$file" models/kroko-en/
+          }
+          $base = 'https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models'
+          $files = @(
+            @('model.bin', 'a7ff7d5e-e67e-406c-a34b-a7edea35b10e.bin', '4e5accc141373565ddc8fa1565bceaa8d0c3482a82cab8131c719ebcc6c2157c'),
+            @('src.spm', 'ea98c52c-58dc-45d5-af23-38f2b029d020.spm', 'bd9b65504acc6d9726dd281f7defc2adb7c2c22d0688fe2f84697de25197c8c5'),
+            @('trg.spm', 'bddbda68-d4d2-4317-a0a1-119caa47525e.spm', 'aded6993c36e440284d11cec3f6b8aef9c0e43188a772d80be342a713adf223d'),
+            @('lex.bin', 'da8fccc0-31df-4665-9703-96d36606e019.bin', '4a5e5827788060f1d718a8132b69440929387514a045796e9b77f935db68c055')
+          )
+          foreach ($entry in $files) {
+            $out = "models/mt-en-zh/$($entry[0])"
+            Invoke-WebRequest "$base/$($entry[1])" -OutFile $out
+            if ((Get-FileHash $out -Algorithm SHA256).Hash -ne $entry[2]) { throw "Model hash mismatch: $out" }
+          }
+      - run: npm run vendor
+      - run: npx electron-builder --win --x64 -c.nsis.useZip=false --publish never
+      - run: npx electron-builder --win --arm64 --publish never
+      - run: node scripts/check-package.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-installers
+          path: desktop/dist/*-setup.exe
+          if-no-files-found: error
+          retention-days: 30
