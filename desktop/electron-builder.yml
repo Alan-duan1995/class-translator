@@ -1,6 +1,6 @@
 appId: local.nangua.classtranslator
 productName: 课堂同传
-copyright: Powered by 南瓜
+copyright: powered by Alan
 directories:
   output: dist
 files:

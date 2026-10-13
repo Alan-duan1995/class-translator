@@ -4,7 +4,7 @@
 
 <p align="center">上课听不懂英文？课堂同传把老师说的话实时变成字幕，并翻译成中文；下课后自动整理成课后精讲。</p>
 
-<p align="center"><b>预览版 v0.7.0</b> · 免费 · Powered by 南瓜</p>
+<p align="center"><b>预览版 v0.7.0</b> · 免费 · powered by Alan</p>
 
 <p align="center"><a href="../../releases/latest"><b>下载最新版</b></a></p>
 
@@ -171,6 +171,6 @@ Gemini 每个模型每天都有免费次数，用完后第二天自动恢复。�
 
 ## 许可证
 
-[MIT](LICENSE) · Powered by 南瓜
+[MIT](LICENSE) · powered by Alan
 
 安装包里包含的第三方组件和模型（sherpa-onnx、Kroko ASR 英语社区模型、Bergamot Translator、Firefox Translations 翻译模型、Silero VAD 等）及其许可证见 `desktop/assets/THIRD_PARTY_NOTICES.md`。其中本地实时识别使用的 Kroko 社区模型以 CC-BY-SA 协议提供，由 Banafo 发布，课堂同传未作修改。
