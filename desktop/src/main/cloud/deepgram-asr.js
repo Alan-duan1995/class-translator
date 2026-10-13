@@ -4,9 +4,9 @@ import { SR } from "../langs.js";
 
 // The desktop main process owns the authenticated connection; no key is sent to the renderer.
 export class DeepgramASR extends EventEmitter {
-  constructor({ key, speaker, offset, connect = (url, options) => new WebSocket(url, options), timeoutMs = 10_000 }) {
+  constructor({ key, speaker, offset, terms = [], connect = (url, options) => new WebSocket(url, options), timeoutMs = 10_000 }) {
     super();
-    Object.assign(this, { key, speaker, offset, connect, timeoutMs });
+    Object.assign(this, { key, speaker, offset, terms, connect, timeoutMs });
     this.kind = "deepgram";
     this.pending = [];
     this.pendingBytes = 0;
@@ -26,6 +26,7 @@ export class DeepgramASR extends EventEmitter {
     const query = new URLSearchParams({ model: "nova-3", language: "en", encoding: "linear16",
       sample_rate: String(SR), channels: "1", interim_results: "true", diarize: "true",
       punctuate: "true", smart_format: "true", endpointing: "300" });
+    for (const term of this.terms) query.append("keyterm", term);
     try {
       this.ws = this.connect(`wss://api.deepgram.com/v1/listen?${query}`, {
         headers: { Authorization: `Token ${this.key}` }, handshakeTimeout: this.timeoutMs,
@@ -75,6 +76,7 @@ export class DeepgramASR extends EventEmitter {
       return;
     }
     this.emit("message", { type: "partial", text: "" });
+    this.emit("message", { type:"coverage", end:Number(m.start ?? 0) + Number(m.duration ?? 0) });
     if (!alt?.transcript?.trim()) return;
     // Split finalized words on speaker changes, preserving timestamps and punctuation.
     const groups = [];

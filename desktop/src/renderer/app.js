@@ -5,6 +5,7 @@ marked.use({ breaks: true });
 const md2html = (md) => marked.parse(md.replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>"));
 let ws, ctx, stream, node, timerId;
 let state = "idle"; // idle | recording | paused
+let sessionRecovery = false;
 let finishing = false; // 点了结束、后台还在收尾（生成最终笔记）；这期间也可以马上开新课，上一节课照样存盘
 let elapsed = 0, lastTick = 0, summaryMd = "";
 const SYSTEM = "__system__"; // 音源选"电脑内部声音"：由服务端直接录系统声音，不用麦克风
@@ -85,6 +86,7 @@ function setState(s) {
   $("stopBtn").disabled = s === "idle";
   $("sumBtn").disabled = s === "idle";
   $("mic").disabled = s !== "idle";
+  $("asr").disabled = $("speaker").disabled = s !== "idle" && sessionRecovery;
   $("saveAudio").disabled = s !== "idle"; // 录到一半不能改
   $("dot").classList.toggle("on", s === "recording");
   if (s === "idle") { renderLive(""); $("connectionText").textContent = ""; }
@@ -185,6 +187,7 @@ async function start() {
     });
   }
   ws = await openSessionSocket();
+  sessionRecovery = ws.recovery && $("asr").value === "deepgram";
   ws.onmessage = onMessage;
   sendLangs(); // 选了电脑内部声音时，服务端收到后就开始录
 
@@ -241,7 +244,7 @@ function showTab(t) {
   tab = t;
   for (const b of document.querySelectorAll(".tab")) b.classList.toggle("on", b.dataset.tab === t);
   $("summary").hidden = t !== "notes";
-  $("report").hidden = $("historyBar").hidden = t !== "report";
+  $("report").hidden = $("historyBar").hidden = $("reportModeWrap").hidden = t !== "report";
   $("sumBadge").hidden = $("sumBtn").hidden = t !== "notes";
   $("repBadge").hidden = t !== "report" || !$("repBadge").textContent;
   $("pdfBtn").hidden = t !== "report";
@@ -375,16 +378,17 @@ async function loadRecords(select) {
 async function pickRecord(fresh = true) {
   const r = records.find((x) => x.name === $("histSel").value);
   if (!r) return;
-  $("genBtn").textContent = r.has_report ? "重新生成" : "生成课后精讲";
+  $("genBtn").textContent = $("reportMode").value === "meeting" ? "生成会议纪要" : r.has_report ? "重新生成" : "生成课后精讲";
   $("repBadge").textContent = ""; $("repBadge").hidden = true;
-  if (!r.has_report) return setReportView("");
-  if (!fresh && reportMd && reportTitle === r.title) return; // 已经显示着这一节
+  if (!r.has_report && $("reportMode").value !== "meeting") return setReportView("");
+  if (!fresh && reportMd && reportTitle === r.title && $("reportMode").value === "class") return; // 已经显示着这一节
   try {
-    const d = await (await apiFetch(`/api/report?record=${encodeURIComponent(r.name)}`)).json();
+    const d = await (await apiFetch(`/api/report?record=${encodeURIComponent(r.name)}&mode=${$("reportMode").value}`)).json();
     setReportView(d.ok ? d.md : "", d.title);
   } catch { setReportView(""); }
 }
 $("histSel").onchange = () => pickRecord();
+$("reportMode").onchange = () => pickRecord();
 $("genBtn").onclick = () => makeReport($("histSel").value);
 
 async function makeReport(record) {
@@ -396,7 +400,7 @@ async function makeReport(record) {
   try {
     r = await (await apiFetch("/api/report", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ record, target: $("target").value, translator: $("translator").value }),
+      body: JSON.stringify({ record, target: $("target").value, translator: $("translator").value, mode: $("reportMode").value }),
     })).json();
   } catch { r = { ok: false, msg: "连不上本地服务" }; }
   $("genBtn").disabled = $("histSel").disabled = false;

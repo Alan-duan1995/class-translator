@@ -10,7 +10,7 @@ const MAX_PARALLEL_TRANSLATIONS = 6;
 
 /** 一节课：收音频 → 苹果识别 → 字幕 → 后台翻译 → 定时更新笔记 → 每句存盘 */
 export class Session {
-  constructor({ send, llm, appleTr, localTr, records, caps, makeAsr, makeRecorder, sleep, now }) {
+  constructor({ send, llm, appleTr, localTr, records, caps, makeAsr, makeRecorder, recoveryFactory, recover, sleep, now }) {
     Object.assign(this, { send, llm, appleTr, records, caps, makeAsr });
     this.localTr = localTr ?? { translate: async () => ({ tr: "", code: "unsupported" }) };
     this.sleep = sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
@@ -18,6 +18,7 @@ export class Session {
     this.cfg = { ...DEFAULTS };
     this.name = records.newName();
     this.recorder = makeRecorder?.(this.name) ?? null; // 开了「保存录音」才有
+    this.recoveryFactory=recoveryFactory;this.recover=recover;this.recovery=null;this.nextRetry=0;
     this.lines = [];
     this.summary = "";
     this.summarizedUpto = 0;
@@ -37,6 +38,9 @@ export class Session {
   }
 
   configure(cfg = {}) {
+    if(this.recovery && ((cfg.asr && cfg.asr!=="deepgram") || (cfg.speaker && cfg.speaker!=="en"))) {
+      this.send({type:"error",msg:"补转写录制期间请保持 Deepgram 英语识别；切换前请结束本次录制"});return;
+    }
     const speakerChanged = cfg.speaker && this.asr && cfg.speaker !== this.asr.speaker;
     if (this.asr && (speakerChanged || (cfg.asr && cfg.asr !== this.asr.kind))) {
       const old = this.asr; // 说到一半的那句会先确定下来
@@ -44,6 +48,8 @@ export class Session {
       old.close();
     }
     if (cfg.speaker in SPEAKER_LANGS) this.cfg.speaker = cfg.speaker;
+    if(!this.recovery && this.samples===0 && cfg.asr==="deepgram" && this.recoveryFactory)this.recovery=this.recoveryFactory(this.name);
+    this.recovery?.configure({...this.cfg,...cfg});
     if (cfg.target in TARGET_LANGS) this.cfg.target = cfg.target;
     if (cfg.asr) this.cfg.asr = cfg.asr;
     if (cfg.translator in TRANSLATORS && cfg.translator !== this.cfg.translator) {
@@ -80,8 +86,11 @@ export class Session {
     if (kind === "local" && this.cfg.speaker !== "en") {
       return this.warnOnce("local-lang", "本地实时识别目前只支持英语，请把「识别方式」改成「云端（Gemini）」。");
     }
+    if(this.recovery){try{this.recovery.feed(buf);}catch(e){this.warnOnce("recovery",e.message);try{this.recovery.close();}catch{}this.recovery=null;}}
+    if(this.recovery && this.failed.has(`${kind}:${this.cfg.speaker}`) && this.now()>=this.nextRetry){this.failed.delete(`${kind}:${this.cfg.speaker}`);}
     if (this.failed.has(`${kind}:${this.cfg.speaker}`)) {
-      return this.warnOnce(`crash-${kind}`, "识别程序连续出错，已停止识别。请结束录制后重新开始，或者在「识别方式」里换一种。");
+      this.record(buf);this.samples+=buf.length/2;
+      return this.warnOnce(`crash-${kind}`, this.recovery ? "连接中断，音频正在本机缓存，约 30 秒后重连；结束时尝试补转写" : "识别程序连续出错，已停止识别。请结束录制后重新开始，或者在「识别方式」里换一种。");
     }
     if (!this.asr) this.startAsr(kind);
     this.asr?.feed(buf);
@@ -110,12 +119,13 @@ export class Session {
     asr.on("message", (m) => this.onAsr(asr, m));
     asr.on("exit", (code) => {
       if (this.asr === asr) this.asr = null;
-      if (code !== 0 && code !== -1) {      // -1 是我们自己关掉的
+      if (code !== 0 && code !== -1) {
+        this.recovery?.failed();this.nextRetry=this.now()+30000;      // -1 是我们自己关掉的
         this.crashes.set(asr.kind, (this.crashes.get(asr.kind) ?? 0) + 1);
         // 下一段音频时自动重启一次，再出错就停
         if (this.crashes.get(asr.kind) >= 2) this.failed.add(`${asr.kind}:${asr.speaker}`);
         if (this.cfg.asr === asr.kind) this.send({ type: "connection", state: this.crashes.get(asr.kind) >= 2 ? "failed" : "reconnecting",
-          text: this.crashes.get(asr.kind) >= 2 ? "识别已停止，请结束后重试或切换识别方式" : "识别连接中断，下一段音频到来时重连；期间可能遗漏字幕" });
+          text: this.recovery ? "连接中断，音频已缓存，正在尝试重连；结束时补转写" : this.crashes.get(asr.kind) >= 2 ? "识别已停止，请结束后重试或切换识别方式" : "识别连接中断，下一段音频到来时重连；期间可能遗漏字幕" });
       }
     });
     this.asr = asr;
@@ -123,7 +133,9 @@ export class Session {
   }
 
   onAsr(asr, m) {
+    if(m.type==="coverage"){if(this.asr===asr || this.stoppingAsr===asr)this.recovery?.coverage(asr.offset+m.end);return;}
     if (m.type === "connection") {
+      if(m.state==="connected" && this.asr===asr)this.recovery?.boundary(asr.offset);
       if (this.asr === asr) this.send(m);
       return;
     }
@@ -282,8 +294,15 @@ export class Session {
   /** 结束录制：最后一句确定下来 → 等翻译 → 最终笔记 → 通知窗口 */
   async stop() {
     this.closeRecorder();
-    if (this.asr) { const a = this.asr; this.asr = null; await a.close(); }
+    if (this.asr) { const a = this.asr; this.asr = null; this.stoppingAsr=a; try { await a.close(); } finally {this.stoppingAsr=null;} }
     await this.idle();
+    while(this.summarizing)await this.sleep(30);
+    if(this.recovery){
+      this.recovery.close();this.save();
+      const result=await this.recover(this.name);
+      if(this.records.exists(this.name)){const data=this.records.load(this.name);this.lines=data.lines;this.summary="";this.summarizedUpto=0;}
+      if(!result.ok) this.send({type:"error",msg:"补转写未完成，已保留本机缓存，可在记录管理中重试"});
+    }
     await this.updateSummary(true);
     this.save();
     this.send({ type: "done", record: this.name });
@@ -291,6 +310,7 @@ export class Session {
 
   /** 关窗口 / 退出：立刻杀掉子程序并存盘 */
   dispose() {
+    try{this.recovery?.close();}catch(e){this.warnOnce("recovery",e.message);}
     this.closeRecorder();
     if (this.asr) { this.asr.kill(); this.asr = null; }
     this.save();

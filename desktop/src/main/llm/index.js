@@ -1,3 +1,4 @@
+import { glossaryPrompt } from "../glossary.js";
 import { GoogleGenAI } from "@google/genai";
 import Anthropic from "@anthropic-ai/sdk";
 import { FAST_MODELS, SUMMARY_MODELS } from "../langs.js";
@@ -38,6 +39,7 @@ export class LLM {
   available() { return [this.gemini && "gemini", this.claude && "claude", this.openai && "openai"].filter(Boolean); }
 
   async ask(provider, { system, prompt, effort, maxTokens, timeoutMs, json = false }) {
+    system += glossaryPrompt(this.settings);
     if (provider === "gemini") {
       if (!this.gemini) throw new NoKey("还没填写 Gemini 的 API key");
       const models = orderModels(effort === "low" ? FAST_MODELS : SUMMARY_MODELS, this.settings.pref("geminiModel", "auto"));
@@ -68,7 +70,7 @@ export class LLM {
       { inlineData: { mimeType: "audio/wav", data: wav.toString("base64") } },
       { text: "请处理这段录音。" },
     ] }];
-    const config = { systemInstruction: RECOGNIZE_SYSTEM(hint), responseMimeType: "application/json", responseJsonSchema: RECOGNIZE_SCHEMA };
+    const config = { systemInstruction: RECOGNIZE_SYSTEM(hint) + glossaryPrompt(this.settings), responseMimeType: "application/json", responseJsonSchema: RECOGNIZE_SCHEMA };
     const models = orderModels(FAST_MODELS, this.settings.pref("geminiModel", "auto"));
     const resp = await this.gemini.generate(models, { contents, config }, 15_000); // 正常几秒就回；8 秒录音上传要时间，网络慢时留足余量
     const r = parseJson(resp.text ?? "");
@@ -97,6 +99,11 @@ export class LLM {
     const body = await this.ask(provider, { system: REPORT_BODY_SYSTEM(targetLabel), prompt,
       effort: "high", maxTokens: 16000, timeoutMs: 600_000 });
     return { outline, body };
+  }
+
+  async meeting(transcript, targetLabel, provider) {
+    return this.ask(provider, { system: `你是会议记录助手。用${targetLabel}输出 Markdown，包含会议摘要、决策、待办表（事项、负责人、截止时间）、未决问题。每项标明原始转写中的时间。只能根据提供的记录，没明确提到的负责人或日期写“未说明”，不推断身份、不编造承诺。术语表仅是词汇参考。`,
+      prompt:transcript, effort:"high", maxTokens:16000, timeoutMs:600_000 });
   }
 
   /** 保存 key 时测一下能不能用 */

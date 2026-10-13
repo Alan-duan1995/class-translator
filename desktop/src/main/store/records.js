@@ -14,9 +14,9 @@ export function newRecordName(d = new Date()) {
 }
 
 /** 与网页版 records/*.md 格式一致 */
-export function recordMarkdown(stem, summary, lines) {
-  const parts = [`# 课堂记录 ${stem}\n`, "## AI 总结\n", summary || "（暂无）", "\n## 转写\n"];
-  for (const l of lines) parts.push(`**[${fmtTs(l.t)}]** ${Number.isInteger(l.speakerId) ? `说话人 ${l.speakerId + 1}：` : ""}${l.text}\n` + (l.tr ? `\n> ${l.tr}\n` : ""));
+export function recordMarkdown(stem, summary, lines, meta = {}) {
+  const parts = [`# ${meta.title || "课堂记录 " + stem}\n`, "## AI 总结\n", summary || "（暂无）", "\n## 转写\n"];
+  for (const l of lines) parts.push(`**[${fmtTs(l.t)}]** ${l.recovered ? "[补转写] " : ""}${Number.isInteger(l.speakerId) ? `${meta.speakers?.[l.speakerId] || (l.speakerId >= 10000 ? `片段 ${Math.floor(l.speakerId / 10000) + 1} · 说话人 ${l.speakerId % 10000 + 1}` : `说话人 ${l.speakerId + 1}`)}：` : ""}${l.text.replace(/\r?\n/g, " ")}\n` + (l.tr ? `\n> ${l.tr}\n` : ""));
   return parts.join("\n");
 }
 
@@ -37,8 +37,12 @@ export function reportMarkdown(outline, body, stem, lastTs) {
 }
 
 export class Records {
-  constructor(dir) { this.dir = dir; }
-  newName() { return newRecordName(); }
+  constructor(dir) { this.dir = dir; this.reserved = new Set(); }
+  newName() {
+    let d = new Date(), name = newRecordName(d);
+    while (this.reserved.has(name) || this.exists(name)) { d = new Date(+d + 1000); name = newRecordName(d); }
+    this.reserved.add(name); return name;
+  }
   ensureDir() { fs.mkdirSync(this.dir, { recursive: true }); }
   #file(name) {
     if (!isValidName(name)) throw new Error("记录名不合法");
@@ -49,10 +53,41 @@ export class Records {
   audioFile(name) { return this.#file(name).replace(/\.md$/, ".wav"); }
   hasAudio(name) { return isValidName(name) && fs.existsSync(path.join(this.dir, name.replace(/\.md$/, ".wav"))); }
   exists(name) { return isValidName(name) && fs.existsSync(path.join(this.dir, name)); }
-  save(name, summary, lines) {
-    fs.mkdirSync(this.dir, { recursive: true });
-    fs.writeFileSync(this.#file(name), recordMarkdown(name.replace(/\.md$/, ""), summary, lines), "utf8");
+  dataFile(name) { return this.#file(name).replace(/\.md$/, ".json"); }
+  atomic(file, text) { const tmp = file + ".tmp"; fs.writeFileSync(tmp, text, { mode: 0o600 }); fs.renameSync(tmp, file); }
+  load(name) {
+    const file = this.#file(name);
+    if (!fs.existsSync(file)) throw new Error("找不到这条记录");
+    try { const data = JSON.parse(fs.readFileSync(this.dataFile(name), "utf8")); if (data.schema === 1 && Array.isArray(data.lines)) return data; } catch {}
+    const md = fs.readFileSync(file, "utf8"), lines = [];
+    for (const row of md.split("\n")) {
+      const m = row.match(LINE_RE);
+      if (m) { const [h,mn,sec] = m[1].split(":").map(Number); let text = m[2]; const who = text.match(/^说话人 (\d+)：/);
+        lines.push({ id: lines.length, t:h*3600+mn*60+sec, text:who ? text.slice(who[0].length) : text, tr:"", lang:"en", ...(who ? {speakerId:Number(who[1])-1} : {}) });
+      } else if (row.startsWith("> ") && lines.length) lines.at(-1).tr += (lines.at(-1).tr ? "\n" : "") + row.slice(2);
+    }
+    return { schema:1, revision:0, summary:(md.split("## AI 总结\n")[1]?.split("\n## 转写")[0] ?? "").trim(), lines, meta:{} };
   }
+  save(name, summary, lines, meta) {
+    this.ensureDir();
+    let old = { revision:0, meta:{} };
+    if (this.exists(name)) old = this.load(name);
+    const data = { schema:1, revision:old.revision+1, summary, lines, meta:meta ?? old.meta };
+    this.atomic(this.dataFile(name), JSON.stringify(data));
+    this.atomic(this.#file(name), recordMarkdown(name.replace(/\.md$/, ""), summary, lines, data.meta));
+    return data;
+  }
+  edit(name, revision, mutate) {
+    const data = this.load(name);
+    if (data.revision !== revision) throw new Error("记录已改变，请刷新后再修改");
+    mutate(data);
+    return this.save(name, data.summary, data.lines, data.meta);
+  }
+  markdown(name) { return fs.readFileSync(this.#file(name), "utf8"); }
+  invalidate(name) {
+    for (const mode of ["class", "meeting"]) fs.rmSync(this.reportPath(name, mode), { force:true });
+  }
+  reportPath(name, mode = "class") { this.#file(name); return mode === "meeting" ? this.#file(name).replace(/\.md$/, "_会议纪要.md") : this.#reportFile(name); }
   transcript(name) {
     const f = this.#file(name);
     return fs.existsSync(f) ? parseTranscript(fs.readFileSync(f, "utf8")) : [];
@@ -64,20 +99,21 @@ export class Records {
       if (!lines.length) return [];
       const [h, m] = lines.at(-1)[0].split(":").map(Number);
       const report = this.readReport(name);
+      const meta = this.load(name).meta;
       return [{ name, stem: name.replace(/\.md$/, ""), lines: lines.length, minutes: h * 60 + m,
-        hasReport: !!report, title: report?.title ?? "", hasAudio: this.hasAudio(name) }];
+        hasReport: !!report, title: meta.title || report?.title || "", hasAudio: this.hasAudio(name), ...(meta.category ? {category:meta.category} : {}) }];
     });
   }
-  readReport(name) {
+  readReport(name, mode = "class") {
     if (!isValidName(name)) return null;
-    const f = this.#reportFile(name);
+    const f = this.reportPath(name, mode);
     if (!fs.existsSync(f)) return null;
     const md = fs.readFileSync(f, "utf8");
     return { md, title: md.split("\n", 1)[0].replace(/^#\s*/, "").trim() };
   }
-  writeReport(name, md) {
+  writeReport(name, md, mode = "class") {
     this.#file(name); // 校验名字
-    const f = this.#reportFile(name);
+    const f = this.reportPath(name, mode);
     fs.writeFileSync(f, md, "utf8");
     return path.basename(f);
   }

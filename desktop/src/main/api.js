@@ -122,6 +122,7 @@ export function createApi({ settings, llm, appleTr, records, caps, version, open
     return { ok: true, msg: notes.join("；"), available: llm.available() }; // available：现在哪几家能用，窗口据此帮用户选翻译方式
   }
 
+  const freshReport=name=>{if(records.load){const d=records.load(name);if(d.meta.stale){d.meta.stale=false;records.save(name,d.summary,d.lines,d.meta);}}};
   async function makeReport(b = {}) {
     const name = b.record;
     if (!records.exists(name)) return { ok: false, msg: "找不到这节课的记录" };
@@ -133,9 +134,13 @@ export function createApi({ settings, llm, appleTr, records, caps, version, open
     const target = b.target in TARGET_LANGS ? b.target : "zh";
     const transcript = lines.map(([t, text]) => `[${t}] ${text}`).join("\n");
     try {
+      if(b.mode==="meeting"){
+        const md="# 会议纪要\n\n"+simplify(await llm.meeting(transcript,TARGET_LANGS[target],provider),target);
+        const file=records.writeReport(name,md,"meeting");freshReport(name);return {ok:true,md,file,title:"会议纪要"};
+      }
       const { outline, body } = await llm.report(transcript, TARGET_LANGS[target], provider);
       const md = simplify(reportMarkdown(outline, body, name.replace(/\.md$/, ""), lines.at(-1)[0]), target);
-      const file = records.writeReport(name, md);
+      const file = records.writeReport(name, md);freshReport(name);
       return { ok: true, md, file, title: md.split("\n", 1)[0].replace(/^#\s*/, "") };
     } catch (e) {
       return { ok: false, msg: `课后精讲生成失败：${friendly(e)}` };
@@ -184,7 +189,7 @@ export function createApi({ settings, llm, appleTr, records, caps, version, open
       case "POST /api/settings": return saveSettings(body);
       case "GET /api/records": return records.list().map((r) => ({ ...r, has_report: r.hasReport, has_audio: r.hasAudio })); // 界面沿用网页版字段名
       case "GET /api/report": {
-        const r = records.readReport(q.get("record"));
+        const r = records.readReport(q.get("record"),q.get("mode"));
         return r ? { ok: true, ...r } : { ok: false };
       }
       case "POST /api/report": return makeReport(body);

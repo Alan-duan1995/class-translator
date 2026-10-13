@@ -1,3 +1,6 @@
+import { AudioJobs, RecoveryJournal } from "./audio-jobs.js";
+import { libraryApi } from "./library-api.js";
+import { keyterms } from "./glossary.js";
 import fs from "node:fs";
 import path from "node:path";
 import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, net, powerSaveBlocker, safeStorage, session, shell, systemPreferences } from "electron";
@@ -27,7 +30,23 @@ import { FileCrypto } from "./store/filecrypto.js";
 
 const here = import.meta.dirname;
 app.setName("课堂同传");
-let mainWindow = null;
+let mainWindow = null, overlayWindow = null;
+let overlayState = { text:"等待字幕…", tr:"" };
+function toggleOverlay() {
+  if (overlayWindow && !overlayWindow.isDestroyed()) { overlayWindow.close(); return; }
+  overlayWindow = new BrowserWindow({ width:760, height:210, minWidth:420, minHeight:160, alwaysOnTop:true, title:"悬浮双语字幕", webPreferences:{preload:path.join(here,"../preload/overlay.cjs"),contextIsolation:true,sandbox:true,nodeIntegration:false} });
+  overlayWindow.setMenu(null);
+  overlayWindow.loadFile(path.join(here,"../renderer/overlay.html"));
+  overlayWindow.webContents.once("did-finish-load",()=>overlayWindow?.webContents.send("overlay:caption",overlayState));
+  overlayWindow.on("closed",()=>{overlayWindow=null;});
+}
+function caption(m) {
+  if(m.type==="line")overlayState={id:m.id,text:m.text,tr:m.tr??""};
+  else if(m.type==="partial" && m.text)overlayState={text:m.text,tr:""};
+  else if(m.type==="translation" && m.id===overlayState.id)overlayState.tr=m.tr;
+  else return;
+  if(overlayWindow&&!overlayWindow.isDestroyed())overlayWindow.webContents.send("overlay:caption",overlayState);
+}
 
 const NO_APPLE_TR = { translate: async () => ({ tr: "", code: "unsupported" }) };
 
@@ -61,30 +80,53 @@ function build() {
   const cleanAudio = () => { try { cleanOldAudio(records.dir, settings.pref("audioKeepDays", 7)); } catch {} };
   cleanAudio();
   setInterval(cleanAudio, 6 * 3600_000).unref();
-  const makeSession = (send) => new Session({
-    send, llm, appleTr: caps.appleTranslate ? appleTr : NO_APPLE_TR, localTr, records, caps,
+  const activity = new Activity(powerSaveBlocker), locked = new Set();
+  const translateOffline=async(text,src,target,provider)=>{
+    const r=await (provider==="local"?localTr:appleTr).translate(text,src,target);
+    if(!r.tr)throw new Error("本地翻译不可用，请检查语言对或选择 AI 翻译");return r.tr;
+  };
+  const jobs = new AudioJobs({translateOffline, records,settings,llm,activity,locked,directory:path.join(userData,"audio-tasks"),fetcher:(url,opts)=>net.fetch(url,opts) });
+  const makeSession = (send) => { const current = new Session({
+    send:(m)=>{send(m);caption(m);}, llm, recoveryFactory:settings.pref("recoveryEnabled",false) ? name=>new RecoveryJournal(jobs,name) : null, recover:name=>jobs.recover(name,true), appleTr: caps.appleTranslate ? appleTr : NO_APPLE_TR, localTr, records, caps,
     makeRecorder: (name) => (settings.pref("saveAudio", false) || process.env.CT_SMOKE_AUDIO ? new AudioRecorder(records.audioFile(name)) : null),
     makeAsr: (kind, speaker, offset) => {
-      if (kind === "deepgram") return new DeepgramASR({ key: settings.getKey("deepgram"), speaker, offset });
+      if (kind === "deepgram") return new DeepgramASR({ key: settings.getKey("deepgram"), speaker, offset, terms:keyterms(settings) });
       if (kind === "speech") return new CloudASR({ kind, llm: { recognize: (wav) => new SpeechClient(settings).recognize(wav, speaker) }, vad, speaker, offset });
       if (kind === "cloud") return new CloudASR({ llm, vad, speaker, offset });
       if (kind === "local") return new LocalASR({ workerPath: localWorker, modelDir, speaker, offset });
       return new AppleASR(bins.asr, speaker, offset);
     },
   });
+    locked.add(current.name);
+    const stop=current.stop.bind(current), dispose=current.dispose.bind(current);
+    current.stop=async()=>{try{return await stop();}finally{locked.delete(current.name);}};
+    current.dispose=()=>{try{return dispose();}finally{locked.delete(current.name);}};
+    return current;
+  };
+  const retryTimer=setInterval(async()=>{if(activity.busy || updater.opening || !settings.pref("recoveryEnabled",false))return;for(const item of jobs.pending()){const r=await jobs.recover(item.record);if(!r.ok)break;}},60000);retryTimer.unref();
   const version = process.env.CT_FAKE_VERSION ?? app.getVersion();
-  const activity = new Activity(powerSaveBlocker);
   const updater = new InstallerUpdate({ current: version, platform: process.platform, arch: process.arch,
     directory: path.join(userData, "updates"), fetch: (url, opts) => net.fetch(url, opts),
     openPath: (file) => shell.openPath(file), isBusy: () => activity.busy });
   const checkUpdate = () => updater.check();
-  const api = createApi({
+  const baseApi = createApi({
     settings, llm, appleTr, records, caps, version, cleanAudio, checkUpdate, updater,
     openExternal: (u) => shell.openExternal(u),
     openPath: (p) => { fs.mkdirSync(p, { recursive: true }); return shell.openPath(p); },
     askMic: () => (process.platform === "darwin" ? systemPreferences.askForMediaAccess("microphone") : Promise.resolve(true)),
     savePdf: (html, name) => savePdf(mainWindow, html, name),
   });
+  const extended = libraryApi({records,settings,llm,jobs,locked,toggleOverlay,translateOffline});
+  const api=async(url,method,body)=>{
+    if(updater.opening && method === "POST" && ["/api/import/begin","/api/recovery/retry","/api/report","/api/library/edit"].includes(url))return {ok:false,msg:"正在打开安装包，请稍后开始处理"};
+    const result=await extended(url,method,body);
+    if(result!==undefined)return result;
+    if(method==="POST" && url==="/api/report"){
+      if(locked.has(body?.record))return {ok:false,msg:"记录正在处理中，请稍后生成"};
+      locked.add(body.record);try{return await baseApi(url,method,body);}finally{locked.delete(body.record);}
+    }
+    return baseApi(url,method,body);
+  };
   // 旧版存在钥匙串里的 key：等窗口显示出来再转存（系统弹窗期间 App 会卡住，先弹的话窗口是一片白）
   const migrateKeys = () => { if (settings.migrateLegacy()) llm.configure(); };
   return { api, activity, updater, makeSession, makeSystemAudio: () => new SystemAudio(bins.syscap), appleTr, localTr, migrateKeys };
@@ -136,6 +178,7 @@ async function main() {
   if (process.env.CT_SMOKE_WAV) return runSmoke(deps);
   registerIpc({ ipcMain, ...deps });
   mainWindow = createWindow();
+  mainWindow.on("closed",()=>{if(overlayWindow&&!overlayWindow.isDestroyed())overlayWindow.close();});
   mainWindow.webContents.once("did-finish-load", () => setTimeout(deps.migrateKeys, 800));
   if (process.env.CT_SMOKE_OPEN) {
     mainWindow.webContents.on("console-message", (_e, _lvl, msg) => console.log("CONSOLE " + msg));

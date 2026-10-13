@@ -109,6 +109,9 @@
   dialog .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
   dialog .state { font-size: 13px; color: var(--muted); }
   dialog .state.ok { color: #16a34a; }
+  dialog textarea, #libraryDialog input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
+  #libraryDialog .row input { flex: 1; width: 0; }
+  #libraryDialog .row button { flex-shrink: 0; }
   dialog input[type=password], dialog input[type=text] { width: 100%; font: inherit; padding: 8px 12px; border-radius: 10px;
     border: 1px solid var(--line); background: var(--bg); color: var(--text); }
   dialog .field { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
@@ -158,6 +161,7 @@
   <button id="audiosBtn" title="查看、播放或删除保存在这台电脑上的录音">查看录音</button>
   <button id="settingsBtn">AI 模型与 API</button>
   <button id="checkUpdateBtn">检查更新</button>
+  <button id="libraryBtn">记录管理</button><button id="importBtn">导入录音</button><button id="glossaryBtn">术语与补转写</button><button id="overlayBtn">悬浮字幕</button>
   <label class="lang" title="开始录制后显示实际收到的声音强度">输入音量 <meter id="inputLevel" min="0" max="100" value="0" aria-label="输入音量"></meter><span id="levelText">未录制</span></label>
 </header>
 <main>
@@ -191,6 +195,7 @@
       <label>课程 <select id="histSel"></select></label>
       <button class="primary" id="genBtn">生成课后精讲</button>
     </div>
+    <label class="lang" id="reportModeWrap" hidden>总结方式 <select id="reportMode"><option value="class">课后精讲</option><option value="meeting">会议纪要</option></select></label>
     <div class="scroll" id="report" hidden><div class="empty">点「结束录制」后，会自动把整节课整理成课后精讲：<br>章节大纲、AI 精讲、术语表、思考题和核心要点</div></div>
   </section>
 </main>
@@ -203,13 +208,15 @@
       <tr class="apple-only"><td>苹果识别、苹果翻译</td><td>只在这台电脑上处理，不上传</td></tr>
       <tr><td>本地实时识别</td><td>只在这台电脑上处理，不上传</td></tr>
       <tr class="local-tr-only"><td>本地翻译</td><td>只在这台电脑上处理，不上传</td></tr>
-      <tr><td>保存录音（默认关闭）</td><td>只存在这台电脑的课堂记录文件夹里，App 运行时定期清理过期录音，不上传保存的文件</td></tr>
+      <tr><td>保存录音（默认关闭）</td><td>只存在这台电脑的课堂记录文件夹里，App 运行时定期清理过期录音，不会仅因保存而上传；主动导入或补转写会上传相应音频</td></tr>
       <tr><td>Deepgram 实时识别</td><td>录音期间的音频持续发送给 Deepgram</td></tr>
       <tr><td>云端识别（Gemini）</td><td>有人说话的音频片段会发送给 Google</td></tr>
       <tr><td>Gemini 翻译、课堂笔记、课后精讲</td><td>转写的文字会发送给 Google</td></tr>
       <tr><td>Claude 翻译、课堂笔记、课后精讲</td><td>转写的文字会发送给 Anthropic</td></tr>
       <tr><td>其他语音模型识别</td><td>音频会发送到你填写的语音接口；本机服务不上传到云端</td></tr>
       <tr><td>其他模型翻译、课堂笔记、课后精讲</td><td>转写的文字会发送给你自己填的那家服务商；本地模型不上传</td></tr>
+      <tr><td>补转写与录音导入</td><td>主动开启后缓存音频，向所选语音服务发送相应片段；补转写仅 Deepgram。缓存成功即删，失败最长保留 7 天。</td></tr>
+      <tr><td>术语与会议纪要</td><td>术语发送给对应识别/翻译服务；转写文字发送给所选 AI 生成纪要。</td></tr>
       <tr><td>检查更新</td><td>打开 App 时向 GitHub 查询最新版本号，不发送任何个人信息</td></tr>
       <tr><td>Alan（作者）</td><td>App 不向作者发送课堂数据；云端功能会发送给对应服务商</td></tr>
     </table>
@@ -303,8 +310,31 @@
   <div class="actions"><button id="settingsCancel" type="button">取消</button>
     <button class="primary" id="settingsSave" type="button">保存</button></div>
 </dialog>
+
+<dialog id="glossaryDialog"><h3>术语与断线补转写</h3><section>
+<p class="hint">每行一个术语，可写「英文 = 中文译法」。最多 40 行、1500 字符。AI 翻译和 Gemini 识别参考完整列表；Deepgram 使用按顺序截取的前 400 字节英文术语。保存后新识别连接生效，不保证每次命中。</p>
+<textarea id="glossaryText" rows="9" style="width:100%" placeholder="thermodynamics = 热力学"></textarea>
+<label><input type="checkbox" id="recoveryEnabled">为新的 Deepgram 录制开启断线补转写</label>
+<p class="hint">开启后临时缓存本次原始音频（最多 2 小时），仅用于补回未确认的时段；暂停不收音。恢复后在结束录制时补转写，失败任务每分钟自动重试（App 开启且空闲时）。缓存成功后删除，未完成缓存保留最多 7 天。会额外向 Deepgram 发送缺失时段并产生服务费用；补回内容不推断实名，边界处可能存在少量重复，请核对。结束前保持 Deepgram 英语识别。</p>
+</section><div class="actions"><button id="glossaryClose">取消</button><button id="glossarySave" class="primary">保存</button></div></dialog>
+<dialog id="libraryDialog" style="width:min(1120px,94vw);max-width:94vw"><h3>记录管理</h3><section>
+<div class="row"><input id="recordSearch" placeholder="搜索标题、日期或正文"><input id="recordCategoryFilter" placeholder="按分类筛选（完整名称）"><button id="recordSearchBtn">搜索</button></div>
+<div style="display:grid;grid-template-columns:230px 1fr;gap:16px;margin-top:12px"><select id="libraryList" size="12" style="width:100%;height:360px"></select>
+<div style="max-height:58vh;overflow:auto"><p id="libraryNotice" class="hint"></p>
+<div class="row"><input id="recordTitle" placeholder="记录名称"><input id="recordCategory" placeholder="课程/会议分类"><button id="recordMetaSave">保存信息</button></div>
+<div id="speakerNames"></div><p class="hint">修改原文后可重译该句；下方译文也可直接编辑。修改会让旧总结失效，请重新生成。录制和处理期间暂不可编辑。</p>
+<div id="recordLines"></div><button id="moreLines" hidden>显示更多</button>
+</div></div>
+<details><summary>待补转写缓存</summary><button id="refreshRecovery">刷新缓存</button><div id="recoveryList"></div></details>
+</section><div class="actions"><button id="libraryExport">导出转写 Markdown</button><button id="librarySummary">打开总结</button><button id="libraryClose">关闭</button></div></dialog>
+<dialog id="importDialog"><h3>导入录音</h3><section>
+<p class="hint">支持本机浏览器能解码的 WAV、MP3、M4A、OGG 等音频，最多 50 MB / 30 分钟。所选音频会分段发送给下面的语音服务，文字发送给主界面选择的翻译模型；费用由对应服务商收取。各段的说话人编号独立，可在记录管理中命名。</p>
+<input id="importFile" type="file" accept="audio/*"><label>识别服务 <select id="importAsr"><option value="deepgram">Deepgram Nova-3（英语）</option><option value="cloud">Gemini</option><option value="speech">其他语音模型（已配置接口）</option></select></label>
+<label><input type="checkbox" id="importSaveAudio">保存一份原声用于回听（沿用自动清理设置）</label>
+<p id="importState" role="status">选择文件后点击开始；语言和翻译方式沿用主界面。</p><progress id="importProgress" max="100" value="0" style="width:100%"></progress>
+</section><div class="actions"><button id="importCancel">取消任务</button><button id="importClose">关闭</button><button class="primary" id="importStart">开始导入</button></div></dialog>
 <script src="bridge.js"></script>
 <script src="errors.js"></script>
-<script src="app.js"></script>
+<script src="app.js"></script><script src="library.js"></script>
 </body>
 </html>

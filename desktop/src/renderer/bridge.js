@@ -15,6 +15,7 @@ window.openSessionSocket = async () => {
   current = sock;
   const opened = await window.api.openSession();
   sock.sid = opened.record;
+  sock.recovery = !!opened.recovery;
   sock.audio = !!opened.audio; // 这节课有没有在保存录音
   sock.readyState = 1;
   sock.send = (d) => (typeof d === "string" ? window.api.sendCmd(d) : window.api.sendAudio(d));

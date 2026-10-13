@@ -12,7 +12,7 @@ export function registerIpc({ ipcMain, api, makeSession, makeSystemAudio, activi
   };
 
   ipcMain.handle("api", async (_e, { url, method, body }) => {
-    const release = url === "/api/report" && method === "POST" ? activity?.acquire() : null;
+    const release = method === "POST" && (url === "/api/report" || (url === "/api/library/edit" && body?.retranslate)) ? activity?.acquire() : null;
     try { return await api(url, method, body); } finally { release?.(); }
   });
 
@@ -27,7 +27,7 @@ export function registerIpc({ ipcMain, api, makeSession, makeSystemAudio, activi
     const release = activity?.acquire() ?? (() => {});
     live.set(wc.id, { session, sys: null, send, release, meterAt: 0 });
     wc.once("destroyed", () => closeFor(wc.id)); // 关窗口：存盘并杀掉子程序
-    return { record: session.name, audio: !!session.recorder };
+    return { record: session.name, audio: !!session.recorder, ...(session.recoveryFactory ? { recovery: true } : {}) };
   });
 
   const feed = (x, buf) => {
