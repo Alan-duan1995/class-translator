@@ -1,0 +1,124 @@
+name: Publish v0.7.2
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-v0.7.2.yml']
+concurrency:
+  group: release-v0.7.2
+  cancel-in-progress: false
+permissions:
+  contents: read
+  actions: read
+env:
+  RELEASE_SOURCE: 9e25d393efc2d32d166eb2dcf6804f764781ccb3
+jobs:
+  mac:
+    runs-on: macos-26
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SOURCE }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run helpers
+      - run: npm run vendor
+      - run: npm run models
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: npx electron-builder --mac --publish never
+      - run: node scripts/check-package.mjs
+      - name: Verify Mac installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arch in arm64 x64; do
+            image="dist/ClassTranslator-0.7.2-${arch}.dmg"
+            hdiutil verify "$image"
+            mount="$RUNNER_TEMP/verify-$arch"
+            mkdir -p "$mount"
+            hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$image"
+            trap 'hdiutil detach "$mount" || true' EXIT
+            app="$mount/课堂同传.app"
+            expected=arm64
+            if [ "$arch" = x64 ]; then expected=x86_64; fi
+            test "$(lipo -archs "$app/Contents/MacOS/课堂同传")" = "$expected"
+            codesign --verify --deep --strict "$app"
+            hdiutil detach "$mount"
+            trap - EXIT
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-installers-v0.7.2
+          path: desktop/dist/*.dmg
+          if-no-files-found: error
+          retention-days: 30
+  publish:
+    needs: mac
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Verify Windows build source
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/$GH_REPO/actions/runs/38367437334 --jq '.head_sha')" = "$RELEASE_SOURCE"
+          test "$(gh api repos/$GH_REPO/actions/runs/38367437334 --jq '.conclusion')" = success
+      - uses: actions/download-artifact@v4
+        with:
+          name: Mac-installers-v0.7.2
+          path: installers
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-installers
+          path: installers
+          run-id: 38367437334
+          github-token: ${{ github.token }}
+      - name: Verify files and prepare release notes
+        run: |
+          set -euo pipefail
+          for file in ClassTranslator-0.7.2-arm64.dmg ClassTranslator-0.7.2-x64.dmg ClassTranslator-0.7.2-win-x64-setup.exe ClassTranslator-0.7.2-win-arm64-setup.exe; do
+            test -s "installers/$file"
+          done
+          (cd installers && sha256sum *.dmg *.exe > SHA256SUMS.txt)
+          cat > release-notes.md <<'NOTES'
+          新增 **Deepgram Nova-3 英文实时转写**，适用于线下会议和课堂。
+
+          - 边说边显示英文字幕，定稿后继续使用所选模型翻译成中文。
+          - 字幕和保存的记录显示说话人编号。
+          - Deepgram API Key 独立配置并加密保存在本机。
+          - 保留苹果识别、本地识别、Gemini 和其他语音模型。
+
+          **使用方法**：在「AI 模型与 API → Deepgram」填写自己的 Key，保存后选择「Deepgram 实时（英语）」和麦克风，开始录制。语音识别和翻译的服务商可分别选择。音频会发送至 Deepgram，由服务商按使用量收费。
+
+          **安装包**：Mac 苹果芯片选 `arm64.dmg`，Intel Mac 选 `x64.dmg`；Windows Intel/AMD 选 `win-x64-setup.exe`，Windows ARM 选 `win-arm64-setup.exe`。
+
+          **验证**：自动构建执行测试和包内资源检查；Mac 安装镜像额外验证内部架构和 ad-hoc 签名。Mac 未做 Apple 公证，首次打开如被拦截，请按 README 的「仍要打开」说明操作。Windows 安装包未做商业代码签名。
+
+          尚未使用真实 Deepgram Key 完成会议录音联调。说话人编号不是实名，重连后可能改变；多人重叠讲话或断线期间可能遗漏字幕。
+          NOTES
+      - name: Upload all installers and publish
+        run: |
+          set -euo pipefail
+          if gh release view v0.7.2 --json isDraft > existing-release.json 2>/dev/null; then
+            test "$(jq -r '.isDraft' existing-release.json)" = true || { echo 'Release already published; refusing to replace assets'; exit 1; }
+          else
+            gh release create v0.7.2 --target "$RELEASE_SOURCE" --draft --title '课堂同传 v0.7.2 · Deepgram 实时英文转写' --notes-file release-notes.md
+          fi
+          gh release upload v0.7.2 installers/*.dmg installers/*.exe installers/SHA256SUMS.txt --clobber
+          test "$(gh release view v0.7.2 --json assets --jq '[.assets[] | select(.name | test("\\.(dmg|exe)$"))] | length')" = 4
+          gh release edit v0.7.2 --draft=false --latest --notes-file release-notes.md
