@@ -4,13 +4,13 @@
 
 <p align="center">上课听不懂英文？课堂同传把老师说的话实时变成字幕，并翻译成中文；下课后自动整理成课后精讲。</p>
 
-<p align="center"><b>预览版 v0.7.2</b> · 软件免费，云端 API 可能收费 · powered by Alan</p>
+<p align="center"><b>预览版 v0.7.3</b> · 软件免费，云端 API 可能收费 · powered by Alan</p>
 
 <p align="center"><a href="../../releases/latest"><b>下载最新版</b></a></p>
 
 ![课堂同传主界面](docs/images/app.png)
 
-本文说明对应 `desktop/` 桌面版 v0.7.2；根目录 Python 网页版是历史实现，功能和配置不完全相同。
+本文说明对应 `desktop/` 桌面版 v0.7.3；根目录 Python 网页版是历史实现，功能和配置不完全相同。
 
 ## 能做什么
 
@@ -50,15 +50,15 @@
 
 ## 下载安装
 
-1. 点本页最上面的 **「下载最新版」**（或者本页右侧 Releases 下的「课堂同传 v0.7.2 预览版」），在打开页面最下面的 **Assets** 里下载安装包：
-   - 苹果芯片的 Mac（M1、M2、M3、M4……）：下载 **「ClassTranslator-0.7.2-arm64.dmg」**
-   - Intel 芯片的 Mac：下载 **「ClassTranslator-0.7.2-x64.dmg」**
-   - Intel 或 AMD 芯片的 Windows 电脑（大多数电脑都是）：下载 **「ClassTranslator-0.7.2-win-x64-setup.exe」**
-   - ARM 芯片的 Windows 电脑（比如部分 Surface、骁龙笔记本）：下载 **「ClassTranslator-0.7.2-win-arm64-setup.exe」**
+1. 点本页最上面的 **「下载最新版」**（或者本页右侧 Releases 下的「课堂同传 v0.7.3 预览版」），在打开页面最下面的 **Assets** 里下载安装包：
+   - 苹果芯片的 Mac（M1、M2、M3、M4……）：下载 **「ClassTranslator-0.7.3-arm64.dmg」**
+   - Intel 芯片的 Mac：下载 **「ClassTranslator-0.7.3-x64.dmg」**
+   - Intel 或 AMD 芯片的 Windows 电脑（大多数电脑都是）：下载 **「ClassTranslator-0.7.3-win-x64-setup.exe」**
+   - ARM 芯片的 Windows 电脑（比如部分 Surface、骁龙笔记本）：下载 **「ClassTranslator-0.7.3-win-arm64-setup.exe」**
 
    不知道 Mac 是哪种芯片？点屏幕左上角的苹果图标 →「关于本机」，看「芯片」那一行。不知道 Windows 电脑是哪种芯片？打开「设置 → 系统 → 系统信息」，看「处理器」那一行。注意不要点绿色的「Code → Download ZIP」，那是源代码，不是软件。
 2. Mac：双击打开下载好的 `.dmg`，把「课堂同传」拖进「应用程序」文件夹，然后在「应用程序」里双击打开。
-3. Windows：双击下载好的 `ClassTranslator-0.7.2-win-对应架构-setup.exe`，按安装向导一路「下一步」，装好后在开始菜单里找「课堂同传」。
+3. Windows：双击下载好的 `ClassTranslator-0.7.3-win-对应架构-setup.exe`，按安装向导一路「下一步」，装好后在开始菜单里找「课堂同传」。
 
 ### 第一次打开被系统拦住怎么办
 
@@ -179,7 +179,9 @@
 
 Windows 原生构建见 `.github/workflows/build-windows.yml`：准备模型、执行 `npm run vendor` 后分别打包 x64 / ARM64；`npm start` 包含 Mac 的 Swift 编译步骤，不能在 Windows 上原样执行。
 
-`.github/workflows/release-v0.7.2.yml` 是固定源码提交的 v0.7.2 发布流程，不会随 README 或后续源码修改自动发布新版本。
+`.github/workflows/release-v0.7.3.yml` 从同一次提交构建 Mac 和 Windows 安装包，检查通过后发布 v0.7.3；日常文档修改不会触发该发布流程。
+
+v0.7.3 将作者及应用标识统一为 Alan。Windows 保留原安装 GUID 以支持覆盖升级；Mac 应用标识更改后可能需要重新授予麦克风和系统音频权限。课堂记录目录和设置目录名称不变。
 
 设计文档和开发计划在 `docs/superpowers/` 里，属于历史方案，不是当前功能清单；[当前实现对照](docs/implementation-status.md)说明代码入口和验证范围。
 

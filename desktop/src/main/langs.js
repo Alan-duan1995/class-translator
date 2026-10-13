@@ -22,7 +22,7 @@ export const CLAUDE_MODELS = {
 // 免费版每个模型每天各有额度，多列几个模型 = 额度叠加；前一个繁忙 / 用完就换下一个
 export const FAST_MODELS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.6-flash"];
 export const SUMMARY_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
-export const GEMINI_MODELS = { auto: "自动轮换（推荐，几个模型的免费额度叠加）", ...Object.fromEntries(FAST_MODELS.map((m) => [m, m])) };
+export const GEMINI_MODELS = { auto: "自动轮换（额度以服务商为准）", ...Object.fromEntries(FAST_MODELS.map((m) => [m, m])) };
 export const SR = 16000;
 export const SUMMARY_INTERVAL_MS = 180_000; // 每隔多久自动更新一次课堂笔记
 export const SUMMARY_CONTEXT_CHARS = 2000;   // 整理新一段笔记时，给 AI 看前面笔记的最后多少字（只为衔接，不让它改）

@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- App 名：`课堂同传`；appId：`local.nangua.classtranslator`；版本从 `0.1.0` 开始。
+- App 名：`课堂同传`；appId：`local.alan.classtranslator`；版本从 `0.1.0` 开始。
 - 主窗口底部固定一行：`Powered by Alan`。
 - 界面文字全部简体中文；所有中文输出（字幕、翻译、笔记、精讲）都必须经过繁转简。
 - 翻译必须保留「带前 3 句上文 + 提示语音识别可能有错字」的提示词（原样移植 `llm.py` 的 `TRANSLATE_SYSTEM`）。苹果翻译只做备用。
@@ -2551,7 +2551,7 @@ git commit -m "桌面版：界面移植（内部通信、隐私说明、Powered 
 `desktop/electron-builder.yml`：
 
 ```yaml
-appId: local.nangua.classtranslator
+appId: local.alan.classtranslator
 productName: 课堂同传
 copyright: Powered by Alan
 directories:

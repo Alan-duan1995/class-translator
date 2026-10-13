@@ -1206,7 +1206,7 @@ Expected: 打印「Rosetta 可用」。若Alan不同意：Windows 只出免安�
 把 `desktop/electron-builder.yml` 整个替换为：
 
 ```yaml
-appId: local.nangua.classtranslator
+appId: local.alan.classtranslator
 productName: 课堂同传
 copyright: Powered by Alan
 directories:

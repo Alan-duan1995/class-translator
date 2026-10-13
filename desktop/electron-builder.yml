@@ -1,4 +1,4 @@
-appId: local.nangua.classtranslator
+appId: local.alan.classtranslator
 productName: 课堂同传
 copyright: powered by Alan
 directories:
@@ -49,6 +49,7 @@ win:
   icon: assets/icon.png
   executableName: ClassTranslator   # 主程序文件名用英文（开始菜单和桌面快捷方式仍显示「课堂同传」）；中文名在 zip 安装包里会变乱码
 nsis:
+  guid: badad66a-1362-5545-982f-a4ebae0eac63 # 保留既有 Windows 安装身份，升级时覆盖原安装
   oneClick: false                         # 显示安装向导，可以选安装位置
   perMachine: false                       # 装在当前用户下，不需要管理员权限
   allowToChangeInstallationDirectory: true
