@@ -1,5 +1,7 @@
 # 课堂同传桌面版 第 2 期 开发计划
 
+> 历史设计 / 开发计划：保留当时的需求与实现步骤，不代表当前版本行为；当前功能以 [README](../../../README.md) 和 [实现对照](../../implementation-status.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让旧 Mac（低于 macOS 26）和 Windows 也能用课堂同传：加入「云端（Gemini）」识别，Windows 能录电脑内部声音，打出 Windows 安装包，并在 Parallels 的 Windows 11 虚拟机里验证。

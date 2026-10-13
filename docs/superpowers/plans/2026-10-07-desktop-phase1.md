@@ -1,5 +1,7 @@
 # 课堂同传桌面版 第 1 期 开发计划
 
+> 历史设计 / 开发计划：保留当时的需求与实现步骤，不代表当前版本行为；当前功能以 [README](../../../README.md) 和 [实现对照](../../implementation-status.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 做出一个在新 Mac（macOS 26+）上双击就能用的「课堂同传」App，功能与现网页版一致（苹果识别、三种翻译、课堂笔记、课后精讲含历史记录、电脑内部声音、导出 Markdown / PDF），key 加密保存，底部写「Powered by 南瓜」。

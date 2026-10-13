@@ -1,5 +1,7 @@
 # 课堂同传 v0.3.0：本地实时识别 开发计划
 
+> 历史设计 / 开发计划：保留当时的需求与实现步骤，不代表当前版本行为；当前功能以 [README](../../../README.md) 和 [实现对照](../../implementation-status.md) 为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让 Windows 和旧 Mac 也能「边说边出字」：新增第三种识别方式「本地实时（英语）」，在电脑上直接识别，不联网、不用 key；翻译仍按所选方式做（带上文、会纠正识别错字）。
