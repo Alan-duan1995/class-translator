@@ -10,7 +10,7 @@ import { AppleTranslator } from "../src/main/apple/translate.js";
 import { SystemAudio } from "../src/main/apple/syscap.js";
 
 const bins = helperPaths({ isPackaged: false, resourcesPath: "", devDir: path.resolve("build/bin") });
-const major = Number(execFileSync("sw_vers", ["-productVersion"]).toString().split(".")[0]);
+const major = process.platform === "darwin" ? Number(execFileSync("sw_vers", ["-productVersion"]).toString().split(".")[0]) : 0;
 const skip = (process.platform !== "darwin" || major < 26 || !fs.existsSync(bins.asr)) && "需要 macOS 26 和 npm run helpers";
 
 function speechPcm(text) { // 用系统语音合成一段英文，转成 16kHz 单声道 int16
@@ -22,8 +22,8 @@ function speechPcm(text) { // 用系统语音合成一段英文，转成 16kHz �
 }
 
 test("helperPaths：开发版和打包版路径", () => {
-  assert.equal(helperPaths({ isPackaged: true, resourcesPath: "/R", devDir: "/D" }).asr, "/R/bin/apple_asr");
-  assert.equal(helperPaths({ isPackaged: false, resourcesPath: "/R", devDir: "/D" }).syscap, "/D/syscap");
+  assert.equal(helperPaths({ isPackaged: true, resourcesPath: "/R", devDir: "/D" }).asr, path.join("/R", "bin", "apple_asr"));
+  assert.equal(helperPaths({ isPackaged: false, resourcesPath: "/R", devDir: "/D" }).syscap, path.join("/D", "syscap"));
 });
 
 test("苹果识别：喂一段英文，收到草稿和确定句", { skip, timeout: 90_000 }, async () => {

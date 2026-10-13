@@ -20,7 +20,8 @@ test("粘贴时带的空格换行会去掉；文件里没有明文 key；权限 
   assert.equal(s.getKey("gemini"), KEY);
   assert.deepEqual(s.keyState("gemini"), { set: true, tail: "7890" });
   assert.equal(fs.readFileSync(f, "utf8").includes(KEY), false);
-  assert.equal(fs.statSync(f).mode & 0o777, 0o600);
+  // Windows uses ACLs rather than POSIX permission bits.
+  if (process.platform !== "win32") assert.equal(fs.statSync(f).mode & 0o777, 0o600);
   assert.equal(new Settings(f, fakeCrypto()).getKey("gemini"), KEY, "重新打开还能读出来");
 });
 
@@ -63,7 +64,7 @@ test("App 自己加密：能加密解密；密钥文件只有本人能读；换�
   assert.equal(enc.toString("latin1").includes(KEY), false);
   assert.equal(a.decryptString(enc), KEY);
   assert.notDeepEqual(a.encryptString(KEY), enc, "每次加密结果不同");
-  assert.equal(fs.statSync(path.join(dir, "sub", "secret.key")).mode & 0o777, 0o600);
+  if (process.platform !== "win32") assert.equal(fs.statSync(path.join(dir, "sub", "secret.key")).mode & 0o777, 0o600);
   assert.equal(new FileCrypto(path.join(dir, "sub", "secret.key")).decryptString(enc), KEY, "重新打开用同一把密钥");
   assert.throws(() => new FileCrypto(path.join(dir, "other.key")).decryptString(enc));
   enc[enc.length - 1] ^= 1;
