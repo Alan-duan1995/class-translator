@@ -264,3 +264,16 @@ test('语音识别配置独立保存、隐藏 Key、空白保留、删除与地�
   assert.equal((await api('/api/settings', 'POST', { clear_speech_key: true })).ok, true);
   assert.equal(settings.getKey('speech'), '');
 });
+
+test("Deepgram key saves independently, returns only its tail, and can be cleared", async () => {
+  const { api, settings } = setup();
+  assert.equal((await api("/api/settings", "POST", { deepgram_key: KEY })).ok, true);
+  assert.equal(settings.getKey("deepgram"), KEY);
+  const st = await api("/api/settings");
+  assert.deepEqual(st.deepgram, { set: true, tail: "7890" });
+  assert.equal(JSON.stringify(st).includes(KEY), false);
+  assert.equal((await api("/api/settings", "POST", { deepgram_key: "bad" })).ok, false);
+  assert.equal(settings.getKey("deepgram"), KEY);
+  await api("/api/settings", "POST", { clear_deepgram_key: true });
+  assert.equal(settings.getKey("deepgram"), "");
+});

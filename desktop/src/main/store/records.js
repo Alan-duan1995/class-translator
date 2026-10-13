@@ -16,7 +16,7 @@ export function newRecordName(d = new Date()) {
 /** 与网页版 records/*.md 格式一致 */
 export function recordMarkdown(stem, summary, lines) {
   const parts = [`# 课堂记录 ${stem}\n`, "## AI 总结\n", summary || "（暂无）", "\n## 转写\n"];
-  for (const l of lines) parts.push(`**[${fmtTs(l.t)}]** ${l.text}\n` + (l.tr ? `\n> ${l.tr}\n` : ""));
+  for (const l of lines) parts.push(`**[${fmtTs(l.t)}]** ${Number.isInteger(l.speakerId) ? `说话人 ${l.speakerId + 1}：` : ""}${l.text}\n` + (l.tr ? `\n> ${l.tr}\n` : ""));
   return parts.join("\n");
 }
 

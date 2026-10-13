@@ -10,7 +10,7 @@ let elapsed = 0, lastTick = 0, summaryMd = "";
 const SYSTEM = "__system__"; // 音源选"电脑内部声音"：由服务端直接录系统声音，不用麦克风
 const lines = {};
 const SPEAKERS = { auto: "自动（中/英）", en: "英语", zh: "中文", ja: "日语", ko: "韩语", fr: "法语", de: "德语", es: "西班牙语" };
-const ASRS = { apple: "苹果自带（最快，边说边出字）", local: "本地实时（英语，免费，边说边出字）", cloud: "云端（Gemini，需要填 key）", speech: "其他语音模型（自定义接口）" };
+const ASRS = { apple: "苹果自带（最快，边说边出字）", local: "本地实时（英语，免费，边说边出字）", cloud: "云端（Gemini，需要填 key）", speech: "其他语音模型（自定义接口）", deepgram: "Deepgram 实时（英语，需要填 key）" };
 const ALL_SPEAKERS = { ...SPEAKERS };
 // 苹果识别和本地实时都要事先确定语言，做不到「自动（中/英）」；云端识别可以
 function refreshSpeakers() {
@@ -46,14 +46,14 @@ for (const id of ["speaker", "target", "asr", "translator"])
   $(id).onchange = () => {
     try { localStorage.setItem(id === "asr" ? "asr2" : id, $(id).value); } catch {}
     // 本地实时只支持英语：语言和识别方式互相迁就，免得出一堆乱码
-    if (id === "speaker" && $("asr").value === "local" && $("speaker").value !== "en") {
+    if (id === "speaker" && ["local", "deepgram"].includes($("asr").value) && $("speaker").value !== "en") {
       $("asr").value = "cloud";
       try { localStorage.setItem("asr2", "cloud"); } catch {}
-      toast("本地实时只支持英语，已改用云端识别（需要填 Gemini key）");
+      toast("当前识别方式只支持英语，已改用云端识别（需要填 Gemini key）");
     }
-    if (id === "asr" && $("asr").value === "local" && $("speaker").value !== "en") {
+    if (id === "asr" && ["local", "deepgram"].includes($("asr").value) && $("speaker").value !== "en") {
       try { localStorage.setItem("speaker", "en"); } catch {}
-      toast("本地实时只支持英语，说话人语言已改为英语");
+      toast("当前识别方式只支持英语，说话人语言已改为英语");
     }
     if (id === "asr" || id === "speaker") refreshSpeakers();
     sendLangs();
@@ -108,13 +108,13 @@ async function listMics() {
   }
 }
 
-function addLine({ id, t, text, tr, same }) {
+function addLine({ id, t, text, tr, same, speakerId }) {
   const record = ws?.audio ? ws.sid : "";
   $("empty")?.remove();
   const el = document.createElement("div");
   el.className = "line";
   el.innerHTML = `<div class="t">${fmt(t)}</div><div><p class="en"></p><p class="zh wait">翻译中…</p></div>`;
-  el.querySelector(".en").textContent = text;
+  el.querySelector(".en").textContent = Number.isInteger(speakerId) ? `说话人 ${speakerId + 1}：${text}` : text;
   const zh = el.querySelector(".zh");
   if (same) { zh.textContent = "（原话）"; zh.classList.add("tag"); zh.classList.remove("wait"); }
   else if (tr) { zh.textContent = tr; zh.classList.remove("wait"); }
@@ -457,7 +457,7 @@ $("exportBtn").onclick = () => {
 
 // ---------- AI 模型与 API：key（修改 / 删除）、模型、苹果翻译 ----------
 // 每家 key 的编辑状态：keep 保持不变 / edit 正在填新的 / remove 保存后删除
-const PROVIDERS = ["gemini", "claude", "openai", "speech"];
+const PROVIDERS = ["gemini", "claude", "openai", "speech", "deepgram"];
 let speechDirty = false;
 for (const id of ["speechBase", "speechModel", "speechKey"]) $(id).oninput = () => { speechDirty = true; };
 const keyMode = {};
@@ -498,7 +498,7 @@ async function openSettings() {
   let st;
   try { st = await (await apiFetch(`/api/settings?src=${src}&tgt=${$("target").value}`)).json(); }
   catch { return toast("连不上本地服务，打不开"); }
-  keys = { gemini: st.gemini, claude: st.claude, openai: st.openai, speech: st.speech };
+  keys = { gemini: st.gemini, claude: st.claude, openai: st.openai, speech: st.speech, deepgram: st.deepgram };
   $("speechBase").value = st.speech.base;
   $("speechModel").value = st.speech.model;
   speechDirty = false;
@@ -533,7 +533,7 @@ $("openTr").onclick = () => apiFetch("/api/open-translation-settings", { method:
   .then(() => toast("在「翻译语言」里下载需要的语言，下载完回来就能用"));
 $("settingsSave").onclick = async () => {
   const body = { gemini_model: $("geminiModel").value, claude_model: $("claudeModel").value };
-  for (const p of ["gemini", "claude"]) {
+  for (const p of ["gemini", "claude", "deepgram"]) {
     if (keyMode[p] === "remove") body[`clear_${p}_key`] = true;
     else body[`${p}_key`] = $(p + "Key").value; // 空着就是不修改
   }
@@ -589,7 +589,7 @@ apiFetch("/api/app-info").then((r) => r.json()).then((info) => {
   if (!info.caps.appleAsr) delete ASRS.apple;
   if (!info.caps.localAsr) delete ASRS.local;
   fillSelect($("asr"), ASRS, load("asr2", Object.keys(ASRS)[0], ASRS));
-  if ($("asr").value === "local" && load("speaker", "en", ALL_SPEAKERS) !== "en") $("asr").value = "cloud"; // 上次选的语言不是英语
+  if (["local", "deepgram"].includes($("asr").value) && load("speaker", "en", ALL_SPEAKERS) !== "en") $("asr").value = "cloud"; // 上次选的语言不是英语
   refreshSpeakers();
   for (const el of document.querySelectorAll(".apple-only")) el.hidden = !(info.caps.appleAsr || info.caps.appleTranslate);
   if (!info.caps.appleTranslate) delete TRANSLATORS.apple;

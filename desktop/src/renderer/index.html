@@ -201,6 +201,7 @@
       <tr><td>本地实时识别</td><td>只在这台电脑上处理，不上传</td></tr>
       <tr class="local-tr-only"><td>本地翻译</td><td>只在这台电脑上处理，不上传</td></tr>
       <tr><td>保存录音（默认关闭）</td><td>只存在这台电脑的课堂记录文件夹里，到期自动删除，不上传</td></tr>
+      <tr><td>Deepgram 实时识别</td><td>录音期间的音频持续发送给 Deepgram</td></tr>
       <tr><td>云端识别（Gemini）</td><td>有人说话的音频片段会发送给 Google</td></tr>
       <tr><td>Gemini 翻译、课堂笔记、课后精讲</td><td>转写的文字会发送给 Google</td></tr>
       <tr><td>Claude 翻译、课堂笔记、课后精讲</td><td>转写的文字会发送给 Anthropic</td></tr>
@@ -268,6 +269,14 @@
     <input type="password" id="speechKey" placeholder="语音服务 API key（本机服务可留空）" autocomplete="off">
     <p class="hint">支持 OpenAI 兼容的 /audio/transcriptions 接口。填好后，在主界面「识别方式」选择「其他语音模型」。语音识别与翻译可使用不同服务商。</p>
     <p class="hint">需要支持音频转写的模型，普通聊天模型不能直接使用。音频分段发送到上面的地址，停顿后显示字幕；本机服务不上传到云端。保存仅检查配置，首次识别时验证服务是否可用。</p>
+  </section>
+  <section>
+    <div class="row"><b>Deepgram · 英文实时识别</b><span class="state" id="deepgramState"></span></div>
+    <div class="saved" id="deepgramSaved"><span class="mask" id="deepgramMask"></span>
+      <button type="button" id="deepgramEdit">修改</button><button type="button" class="del" id="deepgramDel">删除</button></div>
+    <input type="password" id="deepgramKey" placeholder="粘贴 Deepgram API key" autocomplete="off">
+    <p class="hint">使用 Nova-3，边说边出英文字幕，并标记说话人编号。保存后在「识别方式」选择「Deepgram 实时（英语）」，翻译仍使用你选择的模型。</p>
+    <p class="hint">录音期间音频持续发送到 Deepgram，按服务商用量收费。Key 加密保存在本机，首次连接时验证；修改后请重新开始录制。编号不是姓名，重新连接后可能改变，多人同时讲话时可能识别不准。</p>
   </section>
   <section id="localTrSec" hidden>
     <div class="row"><b>本地翻译</b><span class="state ok">英语 → 简体中文：已可用</span></div>

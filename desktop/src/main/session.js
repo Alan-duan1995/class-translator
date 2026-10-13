@@ -62,6 +62,7 @@ export class Session {
   asrKind() {
     if (this.cfg.asr === "apple" && this.caps.appleAsr) return "apple";
     if (this.cfg.asr === "local" && this.caps.localAsr) return "local";
+    if (this.cfg.asr === "deepgram" && this.caps.cloudAsr) return "deepgram";
     if (this.cfg.asr === "speech" && this.caps.cloudAsr) return "speech";
     if (this.cfg.asr === "cloud" && this.caps.cloudAsr) return "cloud";
     return null;
@@ -73,6 +74,9 @@ export class Session {
     if (!kind) {
       return this.warnOnce("no-asr", "这台电脑用不了苹果自带识别（需要 macOS 26 或更新），请在「识别方式」里选「本地实时」或「云端（Gemini）」。");
     }
+    if (kind === "deepgram" && this.cfg.speaker !== "en") {
+      return this.warnOnce("deepgram-lang", "Deepgram 实时识别目前只支持英语，请把说话语言设为英语");
+    }
     if (kind === "local" && this.cfg.speaker !== "en") {
       return this.warnOnce("local-lang", "本地实时识别目前只支持英语，请把「识别方式」改成「云端（Gemini）」。");
     }
@@ -80,7 +84,7 @@ export class Session {
       return this.warnOnce(`crash-${kind}`, "识别程序连续出错，已停止识别。请结束录制后重新开始，或者在「识别方式」里换一种。");
     }
     if (!this.asr) this.startAsr(kind);
-    this.asr.feed(buf);
+    this.asr?.feed(buf);
     this.record(buf); // 和下面的计时同步：录音里的第几秒就是字幕上的第几秒
     this.samples += buf.length / 2;
   }
@@ -111,15 +115,18 @@ export class Session {
         if (this.crashes.get(asr.kind) >= 2) this.failed.add(`${asr.kind}:${asr.speaker}`);
       }
     });
-    asr.start();
     this.asr = asr;
+    asr.start();
   }
 
   onAsr(asr, m) {
     if (m.type === "partial" && asr.kind === "local" && m.conf >= 0 && m.conf < LOCAL_MIN_CONF) {
       this.send({ type: "partial", text: "" }); // 把握很低：多半是旁边有人在说别的语言，乱码草稿不显示
     } else if (m.type === "partial") {
-      if (acceptPartial(m.text ?? "", asr.speaker)) this.send({ type: "partial", text: m.text });
+      if (!m.text || acceptPartial(m.text, asr.speaker)) this.send({ type: "partial", text: m.text });
+    } else if (m.type === "final" && m.source === "deepgram") {
+      this.send({ type: "partial", text: "" });
+      if (m.text?.trim()) this.addLine(m.text.trim(), "en", "", asr.offset + m.start, m.speakerId);
     } else if (m.type === "final" && m.source === "local") {
       const r = acceptLocalFinal(m, asr.speaker);
       if (r) this.addLine(r.text, r.lang, "", asr.offset + r.start);
@@ -140,12 +147,13 @@ export class Session {
   }
 
   /** 新增一句字幕：去重、推给窗口、需要的话后台翻译 */
-  addLine(text, lang, tr, t) {
+  addLine(text, lang, tr, t, speakerId = null) {
     const target = this.cfg.target;
     const context = this.lines.slice(-3).map((l) => l.text);
     const last = this.lines.at(-1);
-    if (last && last.text === text && t - last.t < 10) return null; // 几秒内一字不差的重复，多半是杂音胡编
+    if (last && last.text === text && (last.speakerId ?? null) === speakerId && t - last.t < 10) return null; // 几秒内一字不差的重复，多半是杂音胡编
     const line = { id: this.lines.length, t, text, tr: "", lang, same: lang === target };
+    if (speakerId !== null) line.speakerId = speakerId;
     this.lines.push(line);
     if (!line.same) line.tr = simplify(tr, target);
     this.send({ type: "line", ...line });

@@ -426,3 +426,17 @@ test('其他语音识别可切换、保留时间、字幕继续走所选翻译',
   s.configure({ asr: 'cloud' });
   assert.equal(asrs[1].closed, true);
 });
+
+test("Deepgram: clear interim, preserve speaker and offset, translate finals only", async () => {
+  const { s, sent, asrs } = setup();
+  s.configure({ asr: "deepgram" }); s.samples = 32000; s.audio(pcm(1));
+  const a = asrs[0]; assert.equal(a.kind, "deepgram");
+  a.emit("message", { type: "partial", text: "Hello" });
+  a.emit("message", { type: "partial", text: "" });
+  assert.equal(s.lines.length, 0);
+  for (const speakerId of [0, 1]) a.emit("message", { type: "final", source: "deepgram", text: "Hello.", start: 0.5, speakerId });
+  await s.idle();
+  assert.equal(s.lines.length, 2);
+  assert.deepEqual(s.lines.map(l => [l.t, l.speakerId, l.tr]), [[2.5, 0, "译:Hello."], [2.5, 1, "译:Hello."]]);
+  assert.ok(sent.some(m => m.type === "partial" && m.text === ""));
+});

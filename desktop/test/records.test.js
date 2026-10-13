@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { Records, reportMarkdown, isValidName, newRecordName } from "../src/main/store/records.js";
+import { Records, recordMarkdown, parseTranscript, reportMarkdown, isValidName, newRecordName } from "../src/main/store/records.js";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "ct-rec-"));
 const NAME = "2026-10-07_09-00-00.md";
@@ -55,4 +55,9 @@ test("两个半小时的长课（3000 句）能正常列出", () => {
 
 test("newRecordName 格式", () => {
   assert.equal(newRecordName(new Date(2026, 9, 7, 9, 5, 3)), "2026-10-07_09-05-03.md");
+});
+
+test("speaker labels survive Markdown export and transcript parsing", () => {
+  const md = recordMarkdown("meeting", "", [{ t: 1, text: "Hello.", tr: "你好。", speakerId: 0 }]);
+  assert.deepEqual(parseTranscript(md), [["00:00:01", "说话人 1：Hello."]]);
 });

@@ -64,6 +64,7 @@ export function createApi({ settings, llm, appleTr, records, caps, version, open
       gemini_model: settings.pref("geminiModel", "auto"), gemini_models: GEMINI_MODELS,
       claude_model: settings.pref("claudeModel", "claude-opus-5-5"), claude_models: CLAUDE_MODELS,
       openai: { ...settings.keyState("openai"), ...openaiConfig() }, openai_presets: OPENAI_PRESETS,
+      deepgram: settings.keyState("deepgram"),
       speech: { ...settings.keyState("speech"), base: speechConfig(settings).base, model: speechConfig(settings).model },
       translators,
       apple: caps.appleTranslate ? await appleTr.status(src, tgt) : "unsupported",
@@ -72,6 +73,12 @@ export function createApi({ settings, llm, appleTr, records, caps, version, open
 
   async function saveSettings(b = {}) {
     const notes = [];
+    if (b.clear_deepgram_key) settings.clearKey("deepgram");
+    else if (String(b.deepgram_key ?? "").trim()) {
+      try { settings.setKey("deepgram", b.deepgram_key); }
+      catch (e) { return { ok: false, msg: e.message }; }
+      notes.push("Deepgram key 已保存；选择「Deepgram 实时（英语）」使用，首次连接时验证，修改后需重新开始录制");
+    }
     const touchedSpeech = ["speech_base", "speech_model", "speech_key"].some(k => typeof b[k] === "string");
     if (touchedSpeech) {
       const old = speechConfig(settings);
