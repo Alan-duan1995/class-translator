@@ -157,6 +157,8 @@
   <label id="keepWrap" hidden>自动清理 <select id="keepDays"></select></label>
   <button id="audiosBtn" title="查看、播放或删除保存在这台电脑上的录音">查看录音</button>
   <button id="settingsBtn">AI 模型与 API</button>
+  <button id="checkUpdateBtn">检查更新</button>
+  <label class="lang" title="开始录制后显示实际收到的声音强度">输入音量 <meter id="inputLevel" min="0" max="100" value="0" aria-label="输入音量"></meter><span id="levelText">未录制</span></label>
 </header>
 <main>
   <section class="card">
@@ -169,6 +171,7 @@
     </div>
     <div class="card-foot" id="foot">
       <span id="recog" hidden><span class="pulse"></span></span><span id="footText">未开始录制</span>
+      <span id="connectionText" role="status" style="max-width:48%;overflow-wrap:anywhere"></span>
       <span class="powered" id="credit"><svg width="14" height="14" viewBox="0 0 64 64" aria-hidden="true">
         <path d="M32 14c-2-4 0-8 4-9" stroke="#6fb36b" stroke-width="4" fill="none" stroke-linecap="round"/>
         <ellipse cx="22" cy="38" rx="12" ry="16" fill="#f7934c"/><ellipse cx="42" cy="38" rx="12" ry="16" fill="#f7934c"/>
@@ -224,11 +227,12 @@
     <button class="primary" id="audiosClose" type="button">关闭</button></div>
 </dialog>
 <dialog id="update">
-  <h3>有新版本</h3>
-  <section><p id="updText"></p>
-    <p class="hint">点「去下载」会用浏览器打开下载页，在最下面的 Assets 里下载适合这台电脑的安装包，装法和第一次一样；课堂记录和设置都会保留。</p></section>
+  <h3>软件更新</h3>
+  <section><p id="updText"></p><progress id="updProgress" max="100" value="0" hidden></progress>
+    <p class="hint">自动下载适合这台电脑的安装包并校验。录制或精讲生成期间不会打开安装包。下载完成后手动安装，课堂记录和设置目录保持不变。</p></section>
   <div class="actions"><button id="updLater" type="button">以后再说</button>
-    <button class="primary" id="updGo" type="button">去下载</button></div>
+    <button id="updPage" type="button">打开发布页</button>
+    <button class="primary" id="updGo" type="button">检查更新</button></div>
 </dialog>
 <dialog id="settings">
   <h3>AI 模型与 API</h3>

@@ -55,7 +55,7 @@ for (const id of ["speaker", "target", "asr", "translator"])
       try { localStorage.setItem("speaker", "en"); } catch {}
       toast("当前识别方式只支持英语，说话人语言已改为英语");
     }
-    if (id === "asr" || id === "speaker") refreshSpeakers();
+    if (id === "asr" || id === "speaker") { refreshSpeakers(); $("connectionText").textContent = ""; }
     sendLangs();
     if (state !== "idle") toast("已切换，从下一句开始生效");
   };
@@ -87,7 +87,8 @@ function setState(s) {
   $("mic").disabled = s !== "idle";
   $("saveAudio").disabled = s !== "idle"; // 录到一半不能改
   $("dot").classList.toggle("on", s === "recording");
-  if (s === "idle") renderLive("");
+  if (s === "idle") { renderLive(""); $("connectionText").textContent = ""; }
+  if (s !== "recording") { $("inputLevel").value = 0; $("levelText").textContent = s === "paused" ? "已暂停" : "未录制"; }
 }
 
 navigator.mediaDevices.addEventListener("devicechange", () => listMics()); // 插拔麦克风后自动刷新
@@ -141,7 +142,12 @@ function renderLive(text) {
 
 function onMessage(ev) {
   const m = JSON.parse(ev.data);
-  if (m.type === "line") addLine(m);
+  if (m.type === "audio_level") {
+    if (state === "recording") { $("inputLevel").value = m.level; $("levelText").textContent = m.level > 5 ? "收到声音" : "声音很小"; lastLevelAt = Date.now(); }
+  } else if (m.type === "connection") {
+    $("connectionText").textContent = m.text;
+    $("connectionText").style.color = ["error", "failed", "reconnecting"].includes(m.state) ? "#b54708" : "";
+  } else if (m.type === "line") addLine(m);
   else if (m.type === "partial") renderLive(m.text);
   else if (m.type === "translation") {
     const zh = lines[m.id]?.querySelector(".zh");
@@ -565,18 +571,50 @@ $("settingsSave").onclick = async () => {
   finally { btn.disabled = false; btn.textContent = "保存"; }
 };
 
-// ---------- 更新：打开时查一次，有新版就在右下角提示，点了去下载页自己下载 ----------
-async function checkUpdate() {
-  let u;
-  try { u = await (await apiFetch("/api/update-check", { method: "POST" })).json(); } catch { return; }
-  if (!u.latest) return;
-  $("updBtn").textContent = `有新版 v${u.latest}，点击下载`;
-  $("updBtn").hidden = false;
-  $("updText").textContent = `现在用的是 v${u.current}，最新版是 v${u.latest}。`;
+// ---------- 更新：按需下载安装包，录制中不会安装 ----------
+let updateState = {}, updatePoll = null, lastLevelAt = 0;
+setInterval(() => {
+  if (state === "recording" && Date.now() - lastLevelAt > 2000) {
+    $("inputLevel").value = 0; $("levelText").textContent = "等待音频";
+  }
+}, 1000);
+function renderUpdate(u) {
+  updateState = u;
+  $("updText").textContent = `当前 v${u.current ?? ""}${u.latest ? `，新版 v${u.latest}` : ""}。${u.message ?? ""}`;
+  const busy = ["checking", "downloading"].includes(u.phase);
+  $("updGo").disabled = busy;
+  $("updGo").textContent = u.phase === "ready" ? "打开安装包" : u.latest ? "下载安装包" : "检查更新";
+  $("updProgress").hidden = u.phase !== "downloading";
+  $("updProgress").value = u.percent ?? 0;
+  if (u.phase === "downloading") $("updText").textContent += ` ${u.percent ?? 0}%`;
+  $("updBtn").hidden = !u.latest;
+  $("updBtn").textContent = u.phase === "ready" ? "新版已下载" : `有新版 v${u.latest}`;
+  if (u.phase !== "downloading" && updatePoll) { clearInterval(updatePoll); updatePoll = null; }
 }
+async function checkUpdate(manual = false) {
+  if (manual) $("update").showModal();
+  $("updGo").disabled = true;
+  try { renderUpdate(await (await apiFetch("/api/update-check", { method: "POST" })).json()); }
+  catch { $("updText").textContent = "检查更新失败，请重试或打开发布页"; $("updGo").disabled = false; }
+}
+$("checkUpdateBtn").onclick = () => checkUpdate(true);
 $("updBtn").onclick = () => $("update").showModal();
 $("updLater").onclick = () => $("update").close();
-$("updGo").onclick = () => { apiFetch("/api/update-page", { method: "POST" }); $("update").close(); };
+$("updPage").onclick = () => apiFetch("/api/update-page", { method: "POST" });
+$("updGo").onclick = async () => {
+  try {
+    if (updateState.phase === "ready") {
+      const r = await (await apiFetch("/api/update-open", { method: "POST" })).json();
+      $("updText").textContent = r.message;
+      if (!r.ok) { updateState = await (await apiFetch("/api/update-status")).json(); if (updateState.phase !== "ready") renderUpdate(updateState); }
+    } else if (updateState.latest) {
+      renderUpdate(await (await apiFetch("/api/update-download", { method: "POST" })).json());
+      if (updateState.phase === "downloading" && !updatePoll) updatePoll = setInterval(async () => {
+        try { renderUpdate(await (await apiFetch("/api/update-status")).json()); } catch {}
+      }, 600);
+    } else await checkUpdate();
+  } catch { $("updText").textContent = "更新操作失败，请重试或打开发布页"; }
+};
 
 // App：按这台电脑能用的功能调整选项，第一次打开先看隐私说明
 apiFetch("/api/app-info").then((r) => r.json()).then((info) => {

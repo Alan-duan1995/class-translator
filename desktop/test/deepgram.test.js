@@ -44,7 +44,7 @@ test("Deepgram interim text is replaced; final words retain speaker turns and ti
     { word: "there", punctuated_word: "there.", speaker: 0, start: 0.8 },
     { word: "yes", punctuated_word: "Yes.", speaker: 1, start: 1.2 },
   ]));
-  assert.deepEqual(messages.slice(0, 3).map(m => m.text), ["Hello", "Hello there", ""]);
+  assert.deepEqual(messages.filter(m => m.type === "partial").slice(0, 3).map(m => m.text), ["Hello", "Hello there", ""]);
   assert.deepEqual(messages.filter(m => m.type === "final").map(m => [m.text, m.start, m.speakerId]),
     [["Hello there.", 0.5, 0], ["Yes.", 1.2, 1]]);
   asr.kill();

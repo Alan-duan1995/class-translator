@@ -106,6 +106,7 @@ export class Session {
 
   startAsr(kind) {
     const asr = this.makeAsr(kind, this.cfg.speaker, this.samples / SR);
+    this.send({ type: "connection", state: "connecting", text: kind === "deepgram" ? "正在连接 Deepgram…" : "正在启动识别…" });
     asr.on("message", (m) => this.onAsr(asr, m));
     asr.on("exit", (code) => {
       if (this.asr === asr) this.asr = null;
@@ -113,6 +114,8 @@ export class Session {
         this.crashes.set(asr.kind, (this.crashes.get(asr.kind) ?? 0) + 1);
         // 下一段音频时自动重启一次，再出错就停
         if (this.crashes.get(asr.kind) >= 2) this.failed.add(`${asr.kind}:${asr.speaker}`);
+        if (this.cfg.asr === asr.kind) this.send({ type: "connection", state: this.crashes.get(asr.kind) >= 2 ? "failed" : "reconnecting",
+          text: this.crashes.get(asr.kind) >= 2 ? "识别已停止，请结束后重试或切换识别方式" : "识别连接中断，下一段音频到来时重连；期间可能遗漏字幕" });
       }
     });
     this.asr = asr;
@@ -120,6 +123,14 @@ export class Session {
   }
 
   onAsr(asr, m) {
+    if (m.type === "connection") {
+      if (this.asr === asr) this.send(m);
+      return;
+    }
+    if (["partial", "final"].includes(m.type) && this.asr === asr && asr.kind !== "deepgram") {
+      if (!asr.reportedReady) { asr.reportedReady = true; this.send({ type: "connection", state: "connected", text: "识别正在工作" }); }
+    }
+    if (m.type === "error" && this.asr === asr) this.send({ type: "connection", state: "error", text: m.msg });
     if (m.type === "partial" && asr.kind === "local" && m.conf >= 0 && m.conf < LOCAL_MIN_CONF) {
       this.send({ type: "partial", text: "" }); // 把握很低：多半是旁边有人在说别的语言，乱码草稿不显示
     } else if (m.type === "partial") {

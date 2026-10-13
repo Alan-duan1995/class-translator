@@ -14,7 +14,7 @@ const AUDIO_CHUNK_SEC = 120;     // 播放录音时一次给窗口多长一段
 const safeName = (s) => String(s ?? "课后精讲").replace(/[\\/:*?"<>|]/g, "_").slice(0, 80);
 
 /** 窗口调用的全部接口（与网页版 /api/* 同名同参数，前端改动最小） */
-export function createApi({ settings, llm, appleTr, records, caps, version, openExternal, openPath, askMic, savePdf, cleanAudio, checkUpdate }) {
+export function createApi({ settings, llm, appleTr, records, caps, version, openExternal, openPath, askMic, savePdf, cleanAudio, checkUpdate, updater }) {
   const audioPrefs = () => ({ saveAudio: !!settings.pref("saveAudio", false), audioKeepDays: settings.pref("audioKeepDays", 7) });
   const openaiConfig = () => ({ preset: settings.pref("openaiPreset", "deepseek"), base: settings.pref("openaiBase", ""), model: settings.pref("openaiModel", "") });
   /** 其他模型（OpenAI 兼容接口）：窗口只在用户动过这一栏时才带上这些字段。没问题返回 null */
@@ -170,7 +170,10 @@ export function createApi({ settings, llm, appleTr, records, caps, version, open
         try { fs.unlinkSync(records.audioFile(name)); } catch (e) { return { ok: false, msg: `删除失败：${friendly(e)}` }; }
         return { ok: true };
       }
-      case "POST /api/update-check": return { current: version, latest: checkUpdate ? await checkUpdate() : null }; // 打开窗口时查一次有没有新版
+      case "GET /api/update-status": return updater?.status() ?? {};
+      case "POST /api/update-download": return updater?.download() ?? {};
+      case "POST /api/update-open": return updater?.open() ?? { ok: false };
+      case "POST /api/update-check": if (updater) return updater.check(); return { current: version, latest: checkUpdate ? await checkUpdate() : null }; // 打开窗口时查一次有没有新版
       case "POST /api/update-page": openExternal(`${RELEASES}/latest`); return { ok: true };
       case "POST /api/privacy-accepted":
         settings.setPref("privacyAccepted", true);

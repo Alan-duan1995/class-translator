@@ -15,6 +15,7 @@ export class DeepgramASR extends EventEmitter {
     this.done = new Promise(resolve => { this.resolveDone = resolve; });
   }
   start() {
+    this.emit("message", { type: "connection", state: "connecting", text: "正在连接 Deepgram…" });
     // Defer configuration failures so Session has registered this instance before exit.
     if (!this.key || this.speaker !== "en") {
       queueMicrotask(() => this.fail(!this.key
@@ -34,6 +35,7 @@ export class DeepgramASR extends EventEmitter {
     this.ws.on("open", () => {
       if (this.ended) return;
       clearTimeout(this.openTimer);
+      this.emit("message", { type: "connection", state: "connected", text: "Deepgram 已连接" });
       for (const chunk of this.pending) this.send(chunk);
       this.pending = []; this.pendingBytes = 0;
       if (this.ended) return;

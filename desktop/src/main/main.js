@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, net, safeStorage, session, shell, systemPreferences } from "electron";
+import { app, BrowserWindow, desktopCapturer, ipcMain, Menu, net, powerSaveBlocker, safeStorage, session, shell, systemPreferences } from "electron";
 import { SR } from "./langs.js";
 import { Settings } from "./store/settings.js";
 import { Records } from "./store/records.js";
@@ -20,7 +20,8 @@ import { DeepgramASR } from "./cloud/deepgram-asr.js";
 import { CloudASR } from "./cloud/asr.js";
 import { LocalASR } from "./local/asr.js";
 import { AudioRecorder, cleanOldAudio } from "./store/audio.js";
-import { latestVersion } from "./update.js";
+import { Activity } from "./activity.js";
+import { InstallerUpdate } from "./installer-update.js";
 import { LocalTranslator } from "./local/translate.js";
 import { FileCrypto } from "./store/filecrypto.js";
 
@@ -71,19 +72,14 @@ function build() {
       return new AppleASR(bins.asr, speaker, offset);
     },
   });
-  // 有新版只提示，同学自己去下载页下载（没有开发者签名，App 没法安静地替换自己）
-  const redirectOf = (url) => new Promise((resolve, reject) => { // 这个地址会跳到哪里（不跟着跳）；net 走系统的网络设置，包括系统代理
-    const req = net.request({ url, method: "HEAD", redirect: "manual" });
-    req.on("redirect", (_status, _method, to) => { req.abort(); resolve(to); });
-    req.on("response", () => resolve(url));
-    req.on("error", reject);
-    setTimeout(() => { req.abort(); reject(new Error("超时")); }, 15_000).unref();
-    req.end();
-  });
-  const version = process.env.CT_FAKE_VERSION ?? app.getVersion(); // 测试更新提示时可以假装成旧版
-  const checkUpdate = () => latestVersion({ current: version, redirectOf, base: process.env.CT_UPDATE_BASE });
+  const version = process.env.CT_FAKE_VERSION ?? app.getVersion();
+  const activity = new Activity(powerSaveBlocker);
+  const updater = new InstallerUpdate({ current: version, platform: process.platform, arch: process.arch,
+    directory: path.join(userData, "updates"), fetch: (url, opts) => net.fetch(url, opts),
+    openPath: (file) => shell.openPath(file), isBusy: () => activity.busy });
+  const checkUpdate = () => updater.check();
   const api = createApi({
-    settings, llm, appleTr, records, caps, version, cleanAudio, checkUpdate,
+    settings, llm, appleTr, records, caps, version, cleanAudio, checkUpdate, updater,
     openExternal: (u) => shell.openExternal(u),
     openPath: (p) => { fs.mkdirSync(p, { recursive: true }); return shell.openPath(p); },
     askMic: () => (process.platform === "darwin" ? systemPreferences.askForMediaAccess("microphone") : Promise.resolve(true)),
@@ -91,7 +87,7 @@ function build() {
   });
   // 旧版存在钥匙串里的 key：等窗口显示出来再转存（系统弹窗期间 App 会卡住，先弹的话窗口是一片白）
   const migrateKeys = () => { if (settings.migrateLegacy()) llm.configure(); };
-  return { api, makeSession, makeSystemAudio: () => new SystemAudio(bins.syscap), appleTr, localTr, migrateKeys };
+  return { api, activity, updater, makeSession, makeSystemAudio: () => new SystemAudio(bins.syscap), appleTr, localTr, migrateKeys };
 }
 
 function createWindow() {
