@@ -1,0 +1,64 @@
+name: iOS preview
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/ios-preview.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ios-preview
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.0.1.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core tests
+        run: sh ios/test-core.sh
+      - name: Build simulator app
+        run: |
+          set -o pipefail
+          mkdir -p ios/build
+          xcodebuild -project ios/ClassTranslator.xcodeproj -scheme ClassTranslator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build/simulator CODE_SIGNING_ALLOWED=NO build 2>&1 | tee ios/build/simulator.log
+      - name: Simulator launch smoke test
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl install "$device" ios/build/simulator/Build/Products/Debug-iphonesimulator/ClassTranslator.app
+          xcrun simctl launch "$device" com.alan.class-translator.ios
+          sleep 5
+          xcrun simctl io "$device" screenshot ios/build/iphone-preview.png
+          xcrun simctl spawn "$device" launchctl list | grep com.alan.class-translator.ios
+          xcrun simctl shutdown "$device"
+      - name: Build unsigned iPhone archive
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/ClassTranslator.xcodeproj -scheme ClassTranslator -destination 'generic/platform=iOS' -archivePath ios/build/ClassTranslator.xcarchive CODE_SIGNING_ALLOWED=NO archive 2>&1 | tee ios/build/iphone.log
+      - name: Package
+        run: |
+          mkdir -p ios/build/packages
+          git archive --format=zip --output=ios/build/packages/ClassTranslator-iOS-0.1.0-source.zip HEAD ios LICENSE
+          ditto -c -k --keepParent ios/build/ClassTranslator.xcarchive ios/build/packages/ClassTranslator-iOS-0.1.0-unsigned-archive.zip
+          ditto -c -k --keepParent ios/build/simulator/Build/Products/Debug-iphonesimulator/ClassTranslator.app ios/build/packages/ClassTranslator-iOS-0.1.0-simulator.zip
+          cp ios/build/iphone-preview.png ios/build/packages/
+          cp ios/README.md ios/build/packages/INSTALL.md
+          cd ios/build/packages
+          shasum -a 256 *.zip > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClassTranslator-iOS-0.1.0-preview
+          path: ios/build/packages/*
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: iOS-build-diagnostics
+          path: ios/build/*.log
+          retention-days: 7

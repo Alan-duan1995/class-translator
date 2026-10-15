@@ -1,0 +1,29 @@
+// !$*UTF8*$!
+{ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+8BF729FFE074CAEE622C0292 = { isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+214FAD66617094FC1E2341C1 = { isa = PBXBuildFile; fileRef = 8BF729FFE074CAEE622C0292; };
+EB92E31F405CE3748EAFFE61 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transcript.swift; sourceTree = "<group>"; };
+FE539ACA97B5D82BE47C9E1F = { isa = PBXBuildFile; fileRef = EB92E31F405CE3748EAFFE61; };
+13FC76BB055FD9D29A571005 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCapture.swift; sourceTree = "<group>"; };
+2C58CB3DF625253C0781F90F = { isa = PBXBuildFile; fileRef = 13FC76BB055FD9D29A571005; };
+9FEF098B663A3AE70771F87F = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslatorModel.swift; sourceTree = "<group>"; };
+A2EEF0E3042200DA1AB9B271 = { isa = PBXBuildFile; fileRef = 9FEF098B663A3AE70771F87F; };
+822E2116B170B37548016A85 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassTranslatorApp.swift; sourceTree = "<group>"; };
+2DF0557DFC434B9302553C53 = { isa = PBXBuildFile; fileRef = 822E2116B170B37548016A85; };
+9CEEC13202AFBF12EE3ABB99 = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+A172CEDCAE47474B615C54D5 = { isa = PBXFileReference; explicitFileType = wrapper.application; path = ClassTranslator.app; sourceTree = BUILT_PRODUCTS_DIR; };
+41CF6794BA4200B839C53531 = { isa = PBXGroup; children = (8BF729FFE074CAEE622C0292,EB92E31F405CE3748EAFFE61,13FC76BB055FD9D29A571005,9FEF098B663A3AE70771F87F,822E2116B170B37548016A85,9CEEC13202AFBF12EE3ABB99); path = ClassTranslator; sourceTree = "<group>"; };
+0A3E27B8CA818264D75C8D81 = { isa = PBXGroup; children = (A172CEDCAE47474B615C54D5); name = Products; sourceTree = "<group>"; };
+4813494D137E1631BBA301D5 = { isa = PBXGroup; children = (41CF6794BA4200B839C53531,0A3E27B8CA818264D75C8D81); sourceTree = "<group>"; };
+878A52FC5FF6A57D50B7B870 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (FE539ACA97B5D82BE47C9E1F,2C58CB3DF625253C0781F90F,A2EEF0E3042200DA1AB9B271,2DF0557DFC434B9302553C53); runOnlyForDeploymentPostprocessing = 0; };
+E2AA269EB967A8853A258BFA = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+41D311A605520FC7B8B9A980 = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (214FAD66617094FC1E2341C1); runOnlyForDeploymentPostprocessing = 0; };
+73EBF6644258C120893E685D = { isa = XCBuildConfiguration; buildSettings = { SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 17.0; CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; }; name = Debug; };
+0B0C687DF8B6B8DC790B519C = { isa = XCBuildConfiguration; buildSettings = { SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 17.0; CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 5.0; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O"; }; name = Release; };
+76F8DEC3DFE0BDB465198890 = { isa = XCConfigurationList; buildConfigurations = (73EBF6644258C120893E685D,0B0C687DF8B6B8DC790B519C); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+6C7EFF6369083C8E1F2B1994 = { isa = XCBuildConfiguration; buildSettings = { SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 17.0; CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 5.0; PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = com.alan.class-translator.ios; INFOPLIST_FILE = ClassTranslator/Info.plist; GENERATE_INFOPLIST_FILE = NO; ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; TARGETED_DEVICE_FAMILY = 1; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; CODE_SIGN_STYLE = Automatic; MARKETING_VERSION = 0.1.0; CURRENT_PROJECT_VERSION = 1; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; }; name = Debug; };
+DD75E2CB1C510A828AC72D96 = { isa = XCBuildConfiguration; buildSettings = { SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 17.0; CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 5.0; PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = com.alan.class-translator.ios; INFOPLIST_FILE = ClassTranslator/Info.plist; GENERATE_INFOPLIST_FILE = NO; ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; TARGETED_DEVICE_FAMILY = 1; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; CODE_SIGN_STYLE = Automatic; MARKETING_VERSION = 0.1.0; CURRENT_PROJECT_VERSION = 1; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O"; }; name = Release; };
+1B672BF3DA427763BF644BE3 = { isa = XCConfigurationList; buildConfigurations = (6C7EFF6369083C8E1F2B1994,DD75E2CB1C510A828AC72D96); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+34A04005BCAF206EEC990BD9 = { isa = PBXNativeTarget; buildConfigurationList = 1B672BF3DA427763BF644BE3; buildPhases = (878A52FC5FF6A57D50B7B870,E2AA269EB967A8853A258BFA,41D311A605520FC7B8B9A980); buildRules = (); dependencies = (); name = ClassTranslator; productName = ClassTranslator; productReference = A172CEDCAE47474B615C54D5; productType = "com.apple.product-type.application"; };
+244210E48437B6556980A702 = { isa = PBXProject; attributes = { LastUpgradeCheck = 1600; }; buildConfigurationList = 76F8DEC3DFE0BDB465198890; compatibilityVersion = "Xcode 14.0"; developmentRegion = "zh-Hans"; hasScannedForEncodings = 0; knownRegions = ("zh-Hans",en,Base); mainGroup = 4813494D137E1631BBA301D5; productRefGroup = 0A3E27B8CA818264D75C8D81; projectDirPath = ""; projectRoot = ""; targets = (34A04005BCAF206EEC990BD9); };
+}; rootObject = 244210E48437B6556980A702; }
