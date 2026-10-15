@@ -1,3 +1,4 @@
+import { LivePreview } from "./live-preview.js";
 import { PROVIDER_LABELS, TARGET_LANGS, TRANSLATORS, SPEAKER_LANGS, SR, SUMMARY_CONTEXT_CHARS, SUMMARY_INTERVAL_MS, SUMMARY_RETRY_MS } from "./langs.js";
 import { simplify, friendly, fmtTs } from "./text.js";
 import { acceptFinal, acceptPartial } from "./apple/filter.js";
@@ -5,7 +6,7 @@ import { acceptCloudFinal } from "./cloud/filter.js";
 import { AllModelsBusy, NoKey, isAuthError } from "./llm/errors.js";
 import { acceptLocalFinal, LOCAL_MIN_CONF } from "./local/filter.js";
 
-const DEFAULTS = { speaker: "en", target: "zh", asr: "apple", translator: "gemini" };
+const DEFAULTS = { speaker: "en", target: "zh", asr: "apple", translator: "gemini", fastPreview: true };
 const MAX_PARALLEL_TRANSLATIONS = 6;
 
 /** 一节课：收音频 → 苹果识别 → 字幕 → 后台翻译 → 定时更新笔记 → 每句存盘 */
@@ -35,12 +36,20 @@ export class Session {
     this.paused = false;
     this.fallbackNoted = false;
     this.warned = new Set();
+    this.disposed = false;
+    this.cloudCooldown = new Map();
+    this.preview = new LivePreview({
+      translate: text => this.localTr.pending?.size ? Promise.resolve(null) : this.localTr.translate(text, "en", "zh"),
+      publish: ({text,tr}) => this.send({type:"partial_translation",text,tr:simplify(tr,"zh")}),
+    });
   }
 
   configure(cfg = {}) {
     if(this.recovery && ((cfg.asr && cfg.asr!=="deepgram") || (cfg.speaker && cfg.speaker!=="en"))) {
       this.send({type:"error",msg:"补转写录制期间请保持 Deepgram 英语识别；切换前请结束本次录制"});return;
     }
+    this.preview.clear();
+    if (typeof cfg.fastPreview === "boolean") this.cfg.fastPreview = cfg.fastPreview;
     const speakerChanged = cfg.speaker && this.asr && cfg.speaker !== this.asr.speaker;
     if (this.asr && (speakerChanged || (cfg.asr && cfg.asr !== this.asr.kind))) {
       const old = this.asr; // 说到一半的那句会先确定下来
@@ -56,6 +65,16 @@ export class Session {
       this.cfg.translator = cfg.translator;
       this.fallbackNoted = false;
     }
+    if (this.previewEnabled()) { try { this.localTr.warmup?.(); } catch {} }
+    // Connect/load while the renderer prepares audio capture, before the first chunk.
+    const kind = this.asrKind();
+    if (!this.asr && this.samples === 0 && ["deepgram", "local"].includes(kind) && this.cfg.speaker === "en") this.startAsr(kind);
+  }
+
+  previewEnabled() { return !this.disposed && this.cfg.fastPreview && this.cfg.speaker === "en" && this.cfg.target === "zh" && this.caps.localTranslate; }
+  partial(text) {
+    this.send({type:"partial",text});
+    if(this.previewEnabled()) this.preview.update(text); else this.preview.clear();
   }
 
   warnOnce(key, msg) {
@@ -133,6 +152,8 @@ export class Session {
   }
 
   onAsr(asr, m) {
+    if (m.type === "partial" && this.asr !== asr) return;
+    if (m.type === "final") this.preview.clear();
     if(m.type==="coverage"){if(this.asr===asr || this.stoppingAsr===asr)this.recovery?.coverage(asr.offset+m.end);return;}
     if (m.type === "connection") {
       if(m.state==="connected" && this.asr===asr)this.recovery?.boundary(asr.offset);
@@ -144,11 +165,11 @@ export class Session {
     }
     if (m.type === "error" && this.asr === asr) this.send({ type: "connection", state: "error", text: m.msg });
     if (m.type === "partial" && asr.kind === "local" && m.conf >= 0 && m.conf < LOCAL_MIN_CONF) {
-      this.send({ type: "partial", text: "" }); // 把握很低：多半是旁边有人在说别的语言，乱码草稿不显示
+      this.partial(""); // 把握很低：多半是旁边有人在说别的语言，乱码草稿不显示
     } else if (m.type === "partial") {
-      if (!m.text || acceptPartial(m.text, asr.speaker)) this.send({ type: "partial", text: m.text });
+      if (!m.text || acceptPartial(m.text, asr.speaker)) this.partial(m.text);
     } else if (m.type === "final" && m.source === "deepgram") {
-      this.send({ type: "partial", text: "" });
+      this.partial("");
       if (m.text?.trim()) this.addLine(m.text.trim(), "en", "", asr.offset + m.start, m.speakerId);
     } else if (m.type === "final" && m.source === "local") {
       const r = acceptLocalFinal(m, asr.speaker);
@@ -157,7 +178,7 @@ export class Session {
       const r = acceptCloudFinal(m, asr.speaker);
       if (r) this.addLine(r.text, r.lang, "", asr.offset + r.start); // 翻译统一走 translateLine：带上文、按所选方式
     } else if (m.type === "final") {
-      this.send({ type: "partial", text: "" });
+      this.partial("");
       const r = acceptFinal(m, asr.speaker);
       if (r) this.addLine(r.text, r.lang, "", asr.offset + r.start);
     } else if (m.type === "status") {
@@ -181,7 +202,7 @@ export class Session {
     if (!line.same) line.tr = simplify(tr, target);
     this.send({ type: "line", ...line });
     if (!(line.same || line.tr)) {
-      const p = this.translateLine(line, context, target);
+      const p = this.translateLine(line, context, target, this.cfg.translator);
       this.translations.add(p);
       p.finally(() => this.translations.delete(p));
     }
@@ -196,18 +217,27 @@ export class Session {
     try { return await fn(); } finally { this.active -= 1; this.waiters.shift()?.(); }
   }
 
-  async translateLine(line, context, target) {
-    const tr = await this.withSlot(() => this.translateText(line.text, line.lang, context, target));
-    line.tr = simplify(tr, target);
-    this.send({ type: "translation", id: line.id, tr: line.tr });
-    this.save();
+  async translateLine(line, context, target, provider = this.cfg.translator) {
+    let settled = false;
+    // Keep showing useful Chinese while the chosen AI handles context and terminology.
+    if (this.previewEnabled() && line.lang === "en" && target === "zh" && !["local","apple"].includes(provider) && !this.localTr.pending?.size) {
+      Promise.resolve().then(() => this.localTr.translate(line.text,"en","zh")).then(r => {
+        if (!settled && this.previewEnabled() && r?.tr) this.send({type:"translation_preview",id:line.id,tr:simplify(r.tr,target)});
+      }).catch(() => {});
+    }
+    try {
+      const tr = await this.withSlot(() => this.translateText(line.text, line.lang, context, target, provider));
+      line.tr = simplify(tr, target);
+      if (!this.disposed) this.send({ type: "translation", id: line.id, tr: line.tr });
+      this.save();
+    } finally { settled = true; }
   }
 
   /** 不联网的直译：苹果翻译（新 Mac）和本地翻译（英语 → 简体中文），选了哪个先用哪个，翻不了再试另一个 */
-  async offlineTranslate(text, src, target) {
+  async offlineTranslate(text, src, target, provider = this.cfg.translator) {
     const apple = ["苹果翻译", this.appleTr], local = ["本地翻译", this.localTr];
     let first = null;
-    for (const [who, t] of this.cfg.translator === "local" ? [local, apple] : [apple, local]) {
+    for (const [who, t] of provider === "local" ? [local, apple] : [apple, local]) {
       const r = await t.translate(text, src, target);
       if (r.tr) return { ...r, who };
       first ??= { ...r, who };
@@ -216,25 +246,31 @@ export class Session {
   }
 
   /** 按选的翻译方式翻；AI 模型用不了时改用苹果翻译 / 本地翻译顶上 */
-  async translateText(text, src, context, target) {
+  async translateText(text, src, context, target, provider = this.cfg.translator) {
     let err = null;
-    if (!["apple", "local"].includes(this.cfg.translator)) {
+    const fastFallback = src === "en" && target === "zh" && (this.caps.localTranslate || this.caps.appleTranslate);
+    const cooldown = this.cloudCooldown.get(provider);
+    if (fastFallback && cooldown?.until > this.now()) err = cooldown.error;
+    if (!err && !["apple", "local"].includes(provider)) {
       for (const wait of [0, 3000, 8000]) { // 失败了等一会儿再试，最多 3 次
         if (wait) await this.sleep(wait);
         try {
-          return await this.llm.translate(text, context, TARGET_LANGS[target], this.cfg.translator);
+          const result = await this.llm.translate(text, context, TARGET_LANGS[target], provider, {realtime:fastFallback});
+          this.cloudCooldown.delete(provider);
+          return result;
         } catch (e) {
           err = e;
+          if (fastFallback) { this.cloudCooldown.set(provider,{until:this.now()+15000,error:e}); break; }
           if (e instanceof AllModelsBusy || e instanceof NoKey || String(e?.message).includes("PerDay")) break;
           if (isAuthError(e) || [402, 404].includes(e?.status)) break; // key、地址或模型名不对，余额不足：再试也没用
         }
       }
     }
-    const { tr, code, who: offline } = await this.offlineTranslate(text, src, target);
+    const { tr, code, who: offline } = await this.offlineTranslate(text, src, target, provider);
     if (tr) {
       if (err && !this.fallbackNoted) {
         this.fallbackNoted = true;
-        const who = PROVIDER_LABELS[this.cfg.translator] ?? "AI 翻译";
+        const who = PROVIDER_LABELS[provider] ?? "AI 翻译";
         this.send({ type: "error", msg: `${who} 用不了（${friendly(err)}），先改用${offline}顶上（直译，不会纠正识别错字）` });
       }
       return tr;
@@ -246,7 +282,7 @@ export class Session {
       }
       return "（苹果翻译还没下载这对语言，请在「AI 模型与 API」里点「打开系统设置下载语言」）";
     }
-    if (this.cfg.translator === "local") return "（翻译失败：本地翻译目前只支持英语译成简体中文，其他语言请改用 AI 模型）";
+    if (provider === "local") return "（翻译失败：本地翻译目前只支持英语译成简体中文，其他语言请改用 AI 模型）";
     return "（翻译失败：苹果翻译不支持这对语言）";
   }
 
@@ -293,6 +329,7 @@ export class Session {
 
   /** 结束录制：最后一句确定下来 → 等翻译 → 最终笔记 → 通知窗口 */
   async stop() {
+    this.preview.close();
     this.closeRecorder();
     if (this.asr) { const a = this.asr; this.asr = null; this.stoppingAsr=a; try { await a.close(); } finally {this.stoppingAsr=null;} }
     await this.idle();
@@ -310,6 +347,7 @@ export class Session {
 
   /** 关窗口 / 退出：立刻杀掉子程序并存盘 */
   dispose() {
+    this.disposed = true; this.preview.close();
     try{this.recovery?.close();}catch(e){this.warnOnce("recovery",e.message);}
     this.closeRecorder();
     if (this.asr) { this.asr.kill(); this.asr = null; }

@@ -16,12 +16,16 @@ export class GeminiPool {
     this.cooldown = new Map();
     this.reason = new Map(); // 模型 → 冷却原因：quota（额度用完）/ busy（超时、繁忙）
   }
-  async generate(models, request, timeoutMs) {
-    let lastErr = null;
+  async generate(models, request, timeoutMs, {totalTimeoutMs = Infinity, maxAttempts = Infinity} = {}) {
+    let lastErr = null, attempts = 0;
+    const deadline = this.now() + totalTimeoutMs;
     for (const model of models) {
       if ((this.cooldown.get(model) ?? 0) > this.now()) continue;
+      const remaining = deadline - this.now();
+      if (remaining <= 0 || attempts >= maxAttempts) break;
+      attempts++;
       try {
-        return await withTimeout(this.client.models.generateContent({ model, ...request }), timeoutMs);
+        return await withTimeout(this.client.models.generateContent({ model, ...request }), Math.min(timeoutMs,remaining));
       } catch (e) {
         const status = e?.status ?? e?.code;
         const msg = String(e?.message ?? e);

@@ -38,13 +38,13 @@ export class LLM {
   }
   available() { return [this.gemini && "gemini", this.claude && "claude", this.openai && "openai"].filter(Boolean); }
 
-  async ask(provider, { system, prompt, effort, maxTokens, timeoutMs, json = false }) {
+  async ask(provider, { system, prompt, effort, maxTokens, timeoutMs, json = false, realtime = false }) {
     system += glossaryPrompt(this.settings);
     if (provider === "gemini") {
       if (!this.gemini) throw new NoKey("还没填写 Gemini 的 API key");
       const models = orderModels(effort === "low" ? FAST_MODELS : SUMMARY_MODELS, this.settings.pref("geminiModel", "auto"));
       const config = { systemInstruction: system, ...(json ? { responseMimeType: "application/json" } : {}) };
-      const resp = await this.gemini.generate(models, { contents: prompt, config }, timeoutMs);
+      const resp = await this.gemini.generate(models, { contents: prompt, config }, timeoutMs, realtime ? {totalTimeoutMs:timeoutMs,maxAttempts:2} : undefined);
       return String(resp.text ?? "").trim();
     }
     if (provider === "claude") {
@@ -77,10 +77,10 @@ export class LLM {
     return { text: String(r.text ?? "").trim(), lang: String(r.lang ?? "") };
   }
 
-  translate(sentence, context, targetLabel, provider) {
+  translate(sentence, context, targetLabel, provider, {realtime = false} = {}) {
     const ctx = context.slice(-3).join("\n") || "（无）";
     return this.ask(provider, { system: TRANSLATE_SYSTEM(targetLabel), prompt: `【上文】\n${ctx}\n\n【当前句】\n${sentence}`,
-      effort: "low", maxTokens: 2048, timeoutMs: 10_000 });
+      effort: "low", maxTokens: 2048, realtime, timeoutMs: realtime ? 8000 : 10_000 });
   }
 
   summarize(transcript, previous, targetLabel, provider) {

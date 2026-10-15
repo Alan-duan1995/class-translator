@@ -36,9 +36,11 @@ fillSelect($("speaker"), SPEAKERS, load("speaker", "en", SPEAKERS));
 fillSelect($("target"), TARGETS, load("target", "zh", TARGETS));
 fillSelect($("asr"), ASRS, load("asr2", "apple", ASRS));
 fillSelect($("translator"), TRANSLATORS, load("translator", "gemini", TRANSLATORS));
+$("fastPreview").checked = localStorage.getItem("fastPreview") !== "false";
+$("fastPreview").onchange = () => { localStorage.setItem("fastPreview", String($("fastPreview").checked)); sendLangs(); };
 function sendLangs() {
   if (ws?.readyState === 1) ws.send(JSON.stringify({
-    speaker: $("speaker").value, target: $("target").value, asr: $("asr").value, translator: $("translator").value,
+    fastPreview: $("fastPreview").checked, speaker: $("speaker").value, target: $("target").value, asr: $("asr").value, translator: $("translator").value,
     // Mac 的电脑内部声音由后台的 syscap 录；Windows 的系统回环在窗口里录，和麦克风走同一条路
     source: $("mic").value === SYSTEM && !window.APP_INFO?.caps.loopback ? "system" : "mic",
   }));
@@ -138,6 +140,7 @@ function renderLive(text) {
   const el = $("live");
   el.hidden = !text;
   el.querySelector(".en").textContent = text;
+  const zh = el.querySelector(".zh"); zh.textContent = ""; zh.hidden = true;
   const box = $("transcript");
   if (text && box.scrollHeight - box.scrollTop - box.clientHeight < 120) box.scrollTop = box.scrollHeight;
 }
@@ -151,7 +154,14 @@ function onMessage(ev) {
     $("connectionText").style.color = ["error", "failed", "reconnecting"].includes(m.state) ? "#b54708" : "";
   } else if (m.type === "line") addLine(m);
   else if (m.type === "partial") renderLive(m.text);
-  else if (m.type === "translation") {
+  else if (m.type === "partial_translation") {
+    if (state !== "idle" && $("live").querySelector(".en").textContent === m.text) {
+      const zh=$("live").querySelector(".zh"); zh.textContent="快速预览 · "+m.tr; zh.hidden=false;
+    }
+  } else if (m.type === "translation_preview") {
+    const zh=lines[m.id]?.querySelector(".zh");
+    if(zh && zh.classList.contains("wait")) zh.textContent="快速预览 · "+m.tr;
+  } else if (m.type === "translation") {
     const zh = lines[m.id]?.querySelector(".zh");
     if (zh) { zh.textContent = m.tr; zh.classList.remove("wait"); }
   } else if (m.type === "status") setFoot(m.recognizing);

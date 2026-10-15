@@ -31,6 +31,7 @@ import { FileCrypto } from "./store/filecrypto.js";
 const here = import.meta.dirname;
 app.setName("课堂同传");
 let mainWindow = null, overlayWindow = null;
+let captionSession = null;
 let overlayState = { text:"等待字幕…", tr:"" };
 function toggleOverlay() {
   if (overlayWindow && !overlayWindow.isDestroyed()) { overlayWindow.close(); return; }
@@ -43,6 +44,8 @@ function toggleOverlay() {
 function caption(m) {
   if(m.type==="line")overlayState={id:m.id,text:m.text,tr:m.tr??""};
   else if(m.type==="partial" && m.text)overlayState={text:m.text,tr:""};
+  else if(m.type==="partial_translation" && overlayState.text===m.text)overlayState.tr="快速预览 · "+m.tr;
+  else if(m.type==="translation_preview" && m.id===overlayState.id)overlayState.tr="快速预览 · "+m.tr;
   else if(m.type==="translation" && m.id===overlayState.id)overlayState.tr=m.tr;
   else return;
   if(overlayWindow&&!overlayWindow.isDestroyed())overlayWindow.webContents.send("overlay:caption",overlayState);
@@ -87,7 +90,7 @@ function build() {
   };
   const jobs = new AudioJobs({translateOffline, records,settings,llm,activity,locked,directory:path.join(userData,"audio-tasks"),fetcher:(url,opts)=>net.fetch(url,opts) });
   const makeSession = (send) => { const current = new Session({
-    send:(m)=>{send(m);caption(m);}, llm, recoveryFactory:settings.pref("recoveryEnabled",false) ? name=>new RecoveryJournal(jobs,name) : null, recover:name=>jobs.recover(name,true), appleTr: caps.appleTranslate ? appleTr : NO_APPLE_TR, localTr, records, caps,
+    send:(m)=>{send(m);if(captionSession===current.name)caption(m);}, llm, recoveryFactory:settings.pref("recoveryEnabled",false) ? name=>new RecoveryJournal(jobs,name) : null, recover:name=>jobs.recover(name,true), appleTr: caps.appleTranslate ? appleTr : NO_APPLE_TR, localTr, records, caps,
     makeRecorder: (name) => (settings.pref("saveAudio", false) || process.env.CT_SMOKE_AUDIO ? new AudioRecorder(records.audioFile(name)) : null),
     makeAsr: (kind, speaker, offset) => {
       if (kind === "deepgram") return new DeepgramASR({ key: settings.getKey("deepgram"), speaker, offset, terms:keyterms(settings) });
@@ -97,6 +100,7 @@ function build() {
       return new AppleASR(bins.asr, speaker, offset);
     },
   });
+    captionSession=current.name;caption({type:"partial",text:"等待字幕…"});
     locked.add(current.name);
     const stop=current.stop.bind(current), dispose=current.dispose.bind(current);
     current.stop=async()=>{try{return await stop();}finally{locked.delete(current.name);}};

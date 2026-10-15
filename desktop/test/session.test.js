@@ -429,7 +429,7 @@ test('其他语音识别可切换、保留时间、字幕继续走所选翻译',
 
 test("Deepgram: clear interim, preserve speaker and offset, translate finals only", async () => {
   const { s, sent, asrs } = setup();
-  s.configure({ asr: "deepgram" }); s.samples = 32000; s.audio(pcm(1));
+  s.samples = 32000; s.configure({ asr: "deepgram" }); s.audio(pcm(1));
   const a = asrs[0]; assert.equal(a.kind, "deepgram");
   a.emit("message", { type: "partial", text: "Hello" });
   a.emit("message", { type: "partial", text: "" });
@@ -439,4 +439,33 @@ test("Deepgram: clear interim, preserve speaker and offset, translate finals onl
   assert.equal(s.lines.length, 2);
   assert.deepEqual(s.lines.map(l => [l.t, l.speakerId, l.tr]), [[2.5, 0, "译:Hello."], [2.5, 1, "译:Hello."]]);
   assert.ok(sent.some(m => m.type === "partial" && m.text === ""));
+});
+
+test('English live translation fails over immediately and cools down the failing cloud provider',async()=>{
+ let calls=0;const {s,sent}=setup({caps:{appleAsr:true,appleTranslate:true},llm:{translate:async()=>{calls++;throw Error('network offline');}}});
+ let time=1000;s.now=()=>time;s.sleep=()=>{throw Error('must not wait for a retry');};
+ s.addLine('First English sentence.','en','',0);await s.idle();
+ s.addLine('Second English sentence.','en','',1);await s.idle();
+ assert.equal(calls,1);assert.equal(s.lines[1].tr,'苹果译');time+=16000;
+ s.addLine('Third English sentence.','en','',2);await s.idle();assert.equal(calls,2);
+});
+test('local final preview precedes AI and never becomes saved final translation',async()=>{
+ let finish;const {s,sent}=setup({caps:{appleAsr:true,localTranslate:true},localTr:{translate:async()=>({tr:'本机预览'})},llm:{translate:()=>new Promise(r=>finish=r)}});
+ s.addLine('We should finish the meeting.','en','',0);await new Promise(r=>setImmediate(r));
+ assert.equal(sent.find(m=>m.type==='translation_preview').tr,'本机预览');assert.equal(s.lines[0].tr,'');
+ finish('AI 最终译文');await s.idle();assert.equal(s.lines[0].tr,'AI 最终译文');
+});
+test('late local preview cannot overwrite the AI final result',async()=>{
+ let finish;const {s,sent}=setup({caps:{appleAsr:true,localTranslate:true},localTr:{translate:()=>new Promise(r=>finish=r)}});
+ s.addLine('We should finish the meeting.','en','',0);await s.idle();finish({tr:'迟到的本机预览'});await new Promise(r=>setImmediate(r));
+ assert.equal(sent.filter(m=>m.type==='translation_preview').length,0);
+});
+test('queued sentences retain the translator selected when recognized',async()=>{
+ const calls=[],pending=[];const {s}=setup({llm:{translate:(_text,_ctx,_target,provider)=>{calls.push(provider);return new Promise(r=>pending.push(r));}}});
+ for(let i=0;i<7;i++)s.addLine(`Sentence number ${i}.`,'en','',i);
+ s.configure({translator:'claude'});pending.shift()('done');await new Promise(r=>setImmediate(r));
+ assert.deepEqual(calls,Array(7).fill('gemini'));pending.forEach(r=>r('done'));await s.idle();
+});
+test('Deepgram connection starts before the first audio chunk without shifting timestamps',()=>{
+ const {s,asrs}=setup();s.configure({asr:'deepgram'});assert.equal(asrs.length,1);assert.equal(asrs[0].offset,0);s.audio(pcm(1));assert.equal(asrs.length,1);s.dispose();
 });

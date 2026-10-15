@@ -161,6 +161,7 @@
   <button id="audiosBtn" title="查看、播放或删除保存在这台电脑上的录音">查看录音</button>
   <button id="settingsBtn">AI 模型与 API</button>
   <button id="checkUpdateBtn">检查更新</button>
+  <label class="check" title="英译中时先显示本机直译预览，AI 完成后替换；可关闭以减少本机计算"><input type="checkbox" id="fastPreview" checked> 快速中文预览</label>
   <button id="libraryBtn">记录管理</button><button id="importBtn">导入录音</button><button id="glossaryBtn">术语与补转写</button><button id="overlayBtn">悬浮字幕</button>
   <label class="lang" title="开始录制后显示实际收到的声音强度">输入音量 <meter id="inputLevel" min="0" max="100" value="0" aria-label="输入音量"></meter><span id="levelText">未录制</span></label>
 </header>
@@ -171,7 +172,7 @@
       <label class="lang">翻译成 <select id="target"></select></label></h2>
     <div class="scroll" id="transcript">
       <div class="empty" id="empty">点击「开始录制」，老师说话后这里会出现中英对照</div>
-      <div class="line live" id="live" hidden><div class="t">实时</div><div><p class="en"></p></div></div>
+      <div class="line live" id="live" hidden><div class="t">实时</div><div><p class="en"></p><p class="zh" hidden></p></div></div>
     </div>
     <div class="card-foot" id="foot">
       <span id="recog" hidden><span class="pulse"></span></span><span id="footText">未开始录制</span>

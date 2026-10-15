@@ -47,6 +47,7 @@ export class LocalTranslator {
     w.unref?.(); // 不让它拦着 App 退出
     this.worker = w;
   }
+  warmup() { if (this.#supported("en", "zh")) this.#ensure(); }
   /** 返回 {tr, code}：code 为空表示成功，unsupported 表示不是英语译简体中文 */
   async translate(text, src, tgt) {
     if (!this.#supported(src, tgt)) return { tr: "", code: "unsupported" };

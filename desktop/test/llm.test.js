@@ -204,3 +204,9 @@ test("LLM：填了接口地址、模型名和 key 才算可用；本地模型不
   assert.match(made[1].system, /同声传译/);
   assert.equal(made[1].prompt, "【上文】\n二\n三\n四\n\n【当前句】\n当前");
 });
+
+test('realtime Gemini rotation respects total deadline and attempt cap',async()=>{
+ let time=0;const c=fakeGemini(()=>{time+=5000;return err(503,'busy');});const pool=new GeminiPool(c,()=>time);
+ await assert.rejects(pool.generate(['a','b','c','d'],{},10000,{totalTimeoutMs:8000,maxAttempts:2}));assert.equal(c.calls.length,2);
+ const slow=fakeGemini({a:'hang'});await assert.rejects(new GeminiPool(slow).generate(['a','b'],{},1000,{totalTimeoutMs:15,maxAttempts:2}),TimeoutError);assert.equal(slow.calls.length,1);
+});

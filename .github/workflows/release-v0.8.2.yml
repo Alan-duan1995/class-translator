@@ -1,0 +1,161 @@
+name: Publish v0.8.2
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-v0.8.2.yml']
+concurrency:
+  group: release-v0.8.2
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  mac:
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.0.1.app/Contents/Developer
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run helpers
+      - run: npm run vendor
+      - run: npm run models
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: npx electron-builder --mac --publish never
+      - run: node scripts/check-package.mjs
+      - name: Verify Mac installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arch in arm64 x64; do
+            image="dist/ClassTranslator-0.8.2-${arch}.dmg"
+            hdiutil verify "$image"
+            mount="$RUNNER_TEMP/verify-$arch"
+            mkdir -p "$mount"
+            hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$image"
+            trap 'hdiutil detach "$mount" || true' EXIT
+            app="$mount/课堂同传.app"
+            expected=arm64
+            if [ "$arch" = x64 ]; then expected=x86_64; fi
+            test "$(lipo -archs "$app/Contents/MacOS/课堂同传")" = "$expected"
+            codesign --verify --deep --strict "$app"
+            hdiutil detach "$mount"
+            trap - EXIT
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mac-installers-v0.8.2
+          path: desktop/dist/*.dmg
+          if-no-files-found: error
+          retention-days: 30
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Download bundled models
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = 'sherpa-onnx-streaming-zipformer-en-kroko-2025-08-06'
+          New-Item -ItemType Directory -Force models/kroko-en, models/mt-en-zh, model-download | Out-Null
+          gh release download asr-models -R k2-fsa/sherpa-onnx -p "$name.tar.bz2" -D model-download
+          if ($LASTEXITCODE -ne 0) { throw 'ASR model download failed' }
+          tar -xjf "model-download/$name.tar.bz2" -C model-download
+          if ($LASTEXITCODE -ne 0) { throw 'ASR model extraction failed' }
+          foreach ($file in 'encoder.onnx','decoder.onnx','joiner.onnx','tokens.txt') {
+            Copy-Item "model-download/$name/$file" models/kroko-en/
+          }
+          $base = 'https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/translations-models'
+          $files = @(
+            @('model.bin', 'a7ff7d5e-e67e-406c-a34b-a7edea35b10e.bin', '4e5accc141373565ddc8fa1565bceaa8d0c3482a82cab8131c719ebcc6c2157c'),
+            @('src.spm', 'ea98c52c-58dc-45d5-af23-38f2b029d020.spm', 'bd9b65504acc6d9726dd281f7defc2adb7c2c22d0688fe2f84697de25197c8c5'),
+            @('trg.spm', 'bddbda68-d4d2-4317-a0a1-119caa47525e.spm', 'aded6993c36e440284d11cec3f6b8aef9c0e43188a772d80be342a713adf223d'),
+            @('lex.bin', 'da8fccc0-31df-4665-9703-96d36606e019.bin', '4a5e5827788060f1d718a8132b69440929387514a045796e9b77f935db68c055')
+          )
+          foreach ($entry in $files) {
+            $out = "models/mt-en-zh/$($entry[0])"
+            Invoke-WebRequest "$base/$($entry[1])" -OutFile $out
+            if ((Get-FileHash $out -Algorithm SHA256).Hash -ne $entry[2]) { throw "Model hash mismatch: $out" }
+          }
+      - run: npm run vendor
+      - run: npx electron-builder --win --x64 -c.nsis.useZip=false --publish never
+        shell: bash
+      - run: npx electron-builder --win --arm64 --publish never
+        shell: bash
+      - run: node scripts/check-package.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Windows-installers-v0.8.2
+          path: desktop/dist/*-setup.exe
+          if-no-files-found: error
+          retention-days: 30
+  publish:
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*-installers-v0.8.2'
+          merge-multiple: true
+          path: installers
+      - name: Verify installers and prepare notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in ClassTranslator-0.8.2-arm64.dmg ClassTranslator-0.8.2-x64.dmg ClassTranslator-0.8.2-win-x64-setup.exe ClassTranslator-0.8.2-win-arm64-setup.exe; do
+            test -s "installers/$file"
+          done
+          (cd installers && sha256sum *.dmg *.exe > SHA256SUMS.txt)
+          cat > release-notes.md <<'NOTES'
+          优化英文识别到中文字幕的实时响应。
+
+          - 新增可关闭的「快速中文预览」：本机先译英文草稿/定稿，所选 AI 完成后替换。预览标记清晰，不写入正式记录，不增加云端预览调用。
+          - 收音准备时提前启动 Deepgram/本地识别；麦克风和 Windows 回环音频分块从约 100ms 缩短到约 50ms。
+          - 英译中本地翻译可用时，实时云端等待预算 8 秒，Gemini 最多尝试两个模型；失败立即尝试本地翻译，故障服务冷却 15 秒。
+          - 防止过期预览覆盖最终译文、切换服务影响排队中的旧句子，以及旧会话字幕串入新悬浮窗口。
+
+          快速预览是本机直译，可能不够准确，后续由 AI 完善；可关闭以减少本机负载。真实响应速度取决于设备、网络和服务。未用真实云端 Key 验证端到端延迟，不承诺固定毫秒数。
+
+          四个安装包从本次源码构建，提供 SHA-256。Mac 苹果芯片选 arm64.dmg，Intel 选 x64.dmg；Windows Intel/AMD 选 win-x64-setup.exe，ARM 选 win-arm64-setup.exe。无商业签名/Apple 公证，首次打开参照 README。
+          NOTES
+      - name: Publish complete release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v0.8.2 --json isDraft > existing.json 2>/dev/null; then
+            test "$(jq -r '.isDraft' existing.json)" = true || { echo 'Already published; refusing overwrite'; exit 1; }
+          else
+            gh release create v0.8.2 --target "$GITHUB_SHA" --draft --title '课堂同传 v0.8.2 · 英译中实时响应优化' --notes-file release-notes.md
+          fi
+          gh release upload v0.8.2 installers/*.dmg installers/*.exe installers/SHA256SUMS.txt --clobber
+          test "$(gh release view v0.8.2 --json assets --jq '[.assets[] | select(.name | test("\\.(dmg|exe)$"))] | length')" = 4
+          gh release edit v0.8.2 --draft=false --latest --notes-file release-notes.md
